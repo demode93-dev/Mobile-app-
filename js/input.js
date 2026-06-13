@@ -6,6 +6,8 @@ const Input = (() => {
   let sprint = false;
   let torchToggle = false;          // edge event consumed by game
   let _torchPressed = false;
+  let attackToggle = false;         // edge event consumed by game
+  let _attackPressed = false;
 
   let stickActive = false, stickId = null;
   let baseX = 0, baseY = 0;
@@ -26,7 +28,9 @@ const Input = (() => {
     // --- Action buttons ---
     const torchBtn = document.getElementById("btnTorch");
     const sprintBtn = document.getElementById("btnSprint");
+    const attackBtn = document.getElementById("btnAttack");
     const press = (el, on, off) => {
+      if (!el) return;
       el.addEventListener("touchstart", (e) => { e.preventDefault(); on(); }, { passive: false });
       el.addEventListener("touchend", (e) => { e.preventDefault(); if (off) off(); }, { passive: false });
       el.addEventListener("mousedown", on);
@@ -34,12 +38,14 @@ const Input = (() => {
     };
     press(torchBtn, () => { _torchPressed = true; }, null);
     press(sprintBtn, () => { sprint = true; }, () => { sprint = false; });
+    press(attackBtn, () => { _attackPressed = true; }, null);
 
     // --- Keyboard ---
     window.addEventListener("keydown", (e) => {
       keys[e.key.toLowerCase()] = true;
       if (e.key === "Shift") sprint = true;
       if (e.key.toLowerCase() === "f") _torchPressed = true;
+      if (e.key === " " || e.key.toLowerCase() === "j") { _attackPressed = true; e.preventDefault(); }
     });
     window.addEventListener("keyup", (e) => {
       keys[e.key.toLowerCase()] = false;
@@ -97,11 +103,15 @@ const Input = (() => {
     // consume torch edge
     if (_torchPressed) { torchToggle = true; _torchPressed = false; }
     else torchToggle = false;
+    // consume attack edge
+    if (_attackPressed) { attackToggle = true; _attackPressed = false; }
+    else attackToggle = false;
   }
 
   return {
     setup, poll, move,
     get sprint() { return sprint; },
     get torchToggled() { return torchToggle; },
+    get attackToggled() { return attackToggle; },
   };
 })();

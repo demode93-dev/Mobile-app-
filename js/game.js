@@ -82,6 +82,9 @@ const Game = (() => {
     Sound.setDanger(danger);
     if (player.hurtFlash > 0.3) shake = Math.max(shake, 6);
 
+    // Resolve a melee swing this frame (player flags it, controller applies it).
+    if (player.pendingHit) { player.pendingHit = false; resolveAttack(); }
+
     // Item pickups
     for (const it of map.items) {
       if (it.taken) continue;
@@ -180,6 +183,41 @@ const Game = (() => {
   // Floaty world-space text that drifts up and fades — pure "juice".
   function floaty(x, y, text, color) {
     floaters.push({ x, y: y - 14, text, color, life: 1.1, vy: -36 });
+  }
+
+  // Player melee: damage every enemy within the swing arc, knock them back,
+  // and destroy any whose health hits zero.
+  function resolveAttack() {
+    const reach = player.attackRange;
+    let hitAny = false;
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const e = enemies[i];
+      const d = Utils.dist(player.x, player.y, e.x, e.y);
+      if (d > reach + e.r) continue;
+      const toE = Math.atan2(e.y - player.y, e.x - player.x);
+      let rel = toE - player.facing;
+      rel = Math.atan2(Math.sin(rel), Math.cos(rel)); // normalize to [-PI, PI]
+      if (Math.abs(rel) > player.attackArc) continue;
+
+      hitAny = true;
+      const dead = e.hit(player.attackDmg, toE);
+      burst(e.x, e.y, e.color, 6);
+      if (dead) killEnemy(e, i);
+    }
+    Sound.sfx.swing();
+    if (hitAny) { Sound.sfx.splat(); shake = Math.max(shake, 5); }
+  }
+
+  function killEnemy(e, i) {
+    const pts = e.type === "nemesis" ? 2500 : e.type === "mutant" ? 400
+              : e.type === "zombie" ? 150 : 40;
+    score += pts;
+    burst(e.x, e.y, e.color, e.type === "nemesis" ? 40 : 16);
+    floaty(e.x, e.y, e.type === "nemesis" ? "PATIENT ZERO DOWN!" : "+" + pts,
+           e.type === "nemesis" ? "#ff1f3d" : "#7CFF00");
+    Sound.sfx.kill();
+    if (e.type === "nemesis") { shake = Math.max(shake, 14); UI.nemesis("PATIENT ZERO ELIMINATED"); }
+    enemies.splice(i, 1);
   }
 
   function enrage() {
