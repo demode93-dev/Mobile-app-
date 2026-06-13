@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#05060a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>LAB ESCAPE: Outbreak</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="game"></canvas>
+
+    <!-- Heads up display -->
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="stat health">
+          <span class="label">VITALS</span>
+          <div class="bar"><div id="healthFill" class="fill"></div></div>
+        </div>
+        <div class="stat battery">
+          <span class="label">TORCH</span>
+          <div class="bar"><div id="batteryFill" class="fill"></div></div>
+        </div>
+        <div class="stat keys">
+          <span class="label">KEYCARDS</span>
+          <span id="keyCount" class="value">0 / 3</span>
+        </div>
+      </div>
+      <div class="hud-msg" id="hudMsg"></div>
+    </div>
+
+    <!-- Touch controls -->
+    <div id="touch" class="hidden">
+      <div id="stick" class="stick-base">
+        <div id="stickNub" class="stick-nub"></div>
+      </div>
+      <div class="action-buttons">
+        <button id="btnTorch" class="abtn" aria-label="Flashlight">🔦</button>
+        <button id="btnSprint" class="abtn" aria-label="Sprint">⚡</button>
+      </div>
+    </div>
+
+    <!-- Menus -->
+    <div id="menu" class="overlay">
+      <div class="panel">
+        <h1 class="title">LAB ESCAPE</h1>
+        <p class="subtitle">— OUTBREAK —</p>
+        <p class="blurb">The specimens are loose. Find <b>3 keycards</b>, reach the exit,
+          and don't let the zombies, mutants or swarms catch you in the dark.</p>
+        <button id="btnPlay" class="bigbtn">▶ START ESCAPE</button>
+        <div class="hint">Drag the left side to move • Right buttons for torch &amp; sprint<br>(WASD / Arrows + Shift on desktop)</div>
+      </div>
+    </div>
+
+    <div id="gameover" class="overlay hidden">
+      <div class="panel">
+        <h1 class="title dead">YOU DIDN'T MAKE IT</h1>
+        <p id="goStats" class="blurb"></p>
+        <button id="btnRetry" class="bigbtn">↻ TRY AGAIN</button>
+      </div>
+    </div>
+
+    <div id="win" class="overlay hidden">
+      <div class="panel">
+        <h1 class="title escaped">YOU ESCAPED!</h1>
+        <p id="winStats" class="blurb"></p>
+        <button id="btnNext" class="bigbtn">▶ DEEPER LEVEL</button>
+        <button id="btnMenu" class="smallbtn">Main Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/utils.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
