@@ -27,6 +27,10 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          # Auto-enable GitHub Pages for the repo if it isn't already, so no
+          # manual toggle in Settings is required.
+          enablement: true
 
       - name: Upload site (repo root — it's a static game)
         uses: actions/upload-pages-artifact@v3
