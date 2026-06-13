@@ -69,6 +69,15 @@ const GameMap = (() => {
     for (let i = 0; i < 2 + level; i++) items.push({ type: "battery", ...takeSpot(), taken: false, bob: Math.random() * 6 });
     for (let i = 0; i < 2; i++) items.push({ type: "medkit", ...takeSpot(), taken: false, bob: Math.random() * 6 });
 
+    // Lore drops (PDA / terminal nodes) — environmental storytelling. Each
+    // carries an index into Lore.LOGS so collecting it fires a transmission.
+    const logs = [];
+    const logCount = Math.min(4, floors.length);
+    for (let i = 0; i < logCount; i++) {
+      logs.push({ ...takeSpot(), idx: ((level - 1) * 2 + i) % Lore.LOGS.length,
+                  read: false, bob: Math.random() * 6 });
+    }
+
     // Enemy spawn points (rooms other than the first).
     const enemySpots = [];
     for (let i = 1; i < rooms.length; i++) {
@@ -76,7 +85,7 @@ const GameMap = (() => {
       enemySpots.push({ x: (r.cx + 0.5) * TILE, y: (r.cy + 0.5) * TILE });
     }
 
-    return { grid, cols, rows, spawn, exit, items, enemySpots, rooms,
+    return { grid, cols, rows, spawn, exit, items, logs, enemySpots, rooms,
              pixW: cols * TILE, pixH: rows * TILE };
   }
 
@@ -135,5 +144,44 @@ const GameMap = (() => {
     return false;
   }
 
-  return { make, isWall, moveCircle, hasLOS, WALL, FLOOR, EXIT };
+  // Breadth-first next-step toward a target tile. Lets swarms hunt the player
+  // "around corners" by scent even when there's no direct line of sight.
+  // Returns a unit-ish direction {x, y} in world space, or null if unreachable
+  // / already there. Capped node count keeps it cheap on big maps.
+  function nextStepToward(map, fromPx, fromPy, toPx, toPy, maxNodes = 600) {
+    const sx = Math.floor(fromPx / TILE), sy = Math.floor(fromPy / TILE);
+    const gx = Math.floor(toPx / TILE), gy = Math.floor(toPy / TILE);
+    if (sx === gx && sy === gy) return null;
+    const walk = (tx, ty) =>
+      tx >= 0 && ty >= 0 && tx < map.cols && ty < map.rows && map.grid[ty][tx] !== 1;
+    const key = (x, y) => y * map.cols + x;
+    const came = new Map();
+    const q = [[sx, sy]];
+    came.set(key(sx, sy), null);
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    let head = 0, found = false, nodes = 0;
+    while (head < q.length && nodes++ < maxNodes) {
+      const [cx, cy] = q[head++];
+      if (cx === gx && cy === gy) { found = true; break; }
+      for (const [dx, dy] of dirs) {
+        const nx = cx + dx, ny = cy + dy;
+        if (walk(nx, ny) && !came.has(key(nx, ny))) {
+          came.set(key(nx, ny), [cx, cy]);
+          q.push([nx, ny]);
+        }
+      }
+    }
+    if (!found) return null;
+    // Backtrack to the first tile after the start.
+    let cur = [gx, gy], prev = came.get(key(gx, gy));
+    while (prev && !(prev[0] === sx && prev[1] === sy)) {
+      cur = prev; prev = came.get(key(cur[0], cur[1]));
+    }
+    // Aim at that tile's centre.
+    const tcx = (cur[0] + 0.5) * TILE, tcy = (cur[1] + 0.5) * TILE;
+    const a = Math.atan2(tcy - fromPy, tcx - fromPx);
+    return { x: Math.cos(a), y: Math.sin(a) };
+  }
+
+  return { make, isWall, moveCircle, hasLOS, nextStepToward, WALL, FLOOR, EXIT };
 })();

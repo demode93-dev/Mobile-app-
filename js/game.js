@@ -3,12 +3,13 @@
 const Game = (() => {
   let canvas, ctx, W, H, dpr;
   let state = "menu"; // menu | playing | dead | win
-  let map, player, enemies, particles;
+  let map, player, enemies, particles, floaters;
   let level = 1, score = 0, timeLeft, elapsed;
   let cam = { x: 0, y: 0 };
   let lightCanvas, lightCtx;
   let msgTimer = 0;
   let shake = 0;
+  let nemesisSpawned = false;   // Patient Zero tease — fires once per level
 
   function boot(c) {
     canvas = c;
@@ -34,6 +35,8 @@ const Game = (() => {
     player = new Player(map.spawn.x, map.spawn.y);
     enemies = [];
     particles = [];
+    floaters = [];
+    nemesisSpawned = false;
     elapsed = 0;
     timeLeft = Math.max(90, 150 - level * 8); // soft pressure: alarm countdown
 
@@ -88,6 +91,34 @@ const Game = (() => {
       }
     }
 
+    // Lore drops — step on a PDA node to trigger a one-line transmission.
+    for (const lg of map.logs) {
+      if (lg.read) continue;
+      lg.bob += dt * 3;
+      if (Utils.dist(player.x, player.y, lg.x, lg.y) < player.r + 16) {
+        lg.read = true;
+        Sound.sfx.pickup();
+        UI.transmission(Lore.LOGS[lg.idx]);
+        UI.updateLore(Lore.recover(lg.idx));
+        floaty(lg.x, lg.y, "LOG RECOVERED", "#7CFF00");
+        burst(lg.x, lg.y, "#7CFF00", 8);
+      }
+    }
+
+    // Nemesis tease — Patient Zero wakes once you're halfway to the keycards.
+    if (!nemesisSpawned && player.keys >= 2) {
+      nemesisSpawned = true;
+      let far = map.enemySpots[0], best = -1;
+      for (const s of map.enemySpots) {
+        const dd = Utils.dist(s.x, s.y, player.x, player.y);
+        if (dd > best) { best = dd; far = s; }
+      }
+      enemies.push(new Enemy("nemesis", far.x, far.y, level));
+      Sound.sfx.alarm();
+      UI.nemesis("PATIENT ZERO IS AWAKE");
+      shake = Math.max(shake, 10);
+    }
+
     // Exit
     if (Utils.dist(player.x, player.y, map.exit.x, map.exit.y) < player.r + 22) {
       if (player.keys >= 3) winLevel();
@@ -100,6 +131,13 @@ const Game = (() => {
       p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
       p.vx *= 0.92; p.vy *= 0.92;
       if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    // Floaty pickup text ("+1 KEYCARD!" etc.) — rises and fades.
+    for (let i = floaters.length - 1; i >= 0; i--) {
+      const f = floaters[i];
+      f.y += f.vy * dt; f.vy *= 0.9; f.life -= dt;
+      if (f.life <= 0) floaters.splice(i, 1);
     }
 
     if (player.health <= 0) return die();
@@ -122,15 +160,26 @@ const Game = (() => {
       player.keys++; score += 500;
       Sound.sfx.keycard();
       flashMsg(`KEYCARD ${player.keys}/3 SECURED`, 1.4);
+      floaty(it.x, it.y, "+1 KEYCARD!", "#7CFF00");
       burst(it.x, it.y, "#7CFF00", 18);
+      shake = Math.max(shake, 3);
     } else if (it.type === "battery") {
       player.battery = Utils.clamp(player.battery + 45, 0, 100);
       if (!player.torchOn) player.torchOn = true;
-      Sound.sfx.pickup(); score += 60; burst(it.x, it.y, "#00e5ff", 10);
+      Sound.sfx.pickup(); score += 60;
+      floaty(it.x, it.y, "+45% TORCH", "#00e5ff");
+      burst(it.x, it.y, "#00e5ff", 10);
     } else if (it.type === "medkit") {
       player.health = Utils.clamp(player.health + 35, 0, player.maxHealth);
-      Sound.sfx.pickup(); score += 80; burst(it.x, it.y, "#ff5577", 10);
+      Sound.sfx.pickup(); score += 80;
+      floaty(it.x, it.y, "+35 HEALTH", "#ff5577");
+      burst(it.x, it.y, "#ff5577", 10);
     }
+  }
+
+  // Floaty world-space text that drifts up and fades — pure "juice".
+  function floaty(x, y, text, color) {
+    floaters.push({ x, y: y - 14, text, color, life: 1.1, vy: -36 });
   }
 
   function enrage() {
@@ -160,10 +209,31 @@ const Game = (() => {
 
   function winLevel() {
     state = "win";
-    score += 1000 + Math.max(0, Math.floor(timeLeft) * 10) + player.health * 5;
+    // ---- Tiered (1-3 star) victory rating ----
+    //   ★    Escaped alive
+    //   ★★   Escaped with > 50% torch battery
+    //   ★★★  Escaped in under 90 seconds (speedrun)
+    const torchPct = Math.round(player.battery);
+    const secs = elapsed;
+    let stars = 1;
+    if (torchPct > 50) stars++;
+    if (secs < 90) stars++;
+    score += 1000 + Math.max(0, Math.floor(timeLeft) * 10) + player.health * 5 + stars * 500;
+
+    // Persist the player's best rating for this level (replay incentive).
+    let best = stars;
+    try {
+      const k = "labescape.stars." + level;
+      best = Math.max(stars, parseInt(localStorage.getItem(k) || "0", 10));
+      localStorage.setItem(k, String(best));
+    } catch {}
+
     Sound.sfx.win();
     Sound.stopAmbient();
-    UI.showWin(level, Math.floor(score), Math.floor(elapsed));
+    UI.showWin(level, Math.floor(score), secs, stars, best, {
+      torchOk: torchPct > 50, torch: torchPct,
+      timeOk: secs < 90, time: secs.toFixed(1),
+    });
   }
 
   function flashMsg(text, dur) {
@@ -185,9 +255,11 @@ const Game = (() => {
 
     drawFloor();
     drawItems();
+    drawLogs();
     drawExit();
     for (const e of enemies) cullDraw(e);
     drawParticles();
+    drawFloaters();
     player.draw(ctx);
 
     ctx.restore();
@@ -264,6 +336,42 @@ const Game = (() => {
     }
   }
 
+  function drawLogs() {
+    const now = performance.now();
+    for (const lg of map.logs) {
+      if (lg.read) continue;
+      const by = Math.sin(lg.bob) * 3;
+      const pulse = 0.55 + Math.sin(now / 280 + lg.idx) * 0.45;
+      ctx.save();
+      ctx.translate(lg.x, lg.y + by);
+      ctx.shadowColor = "#7CFF00"; ctx.shadowBlur = 10 + pulse * 14;
+      // little terminal / PDA glyph
+      ctx.fillStyle = `rgba(124,255,0,${0.55 + pulse * 0.45})`;
+      ctx.fillRect(-8, -10, 16, 20);
+      ctx.fillStyle = "#04140a";
+      ctx.fillRect(-5, -7, 10, 9);
+      ctx.fillStyle = "#7CFF00";
+      ctx.fillRect(-4, -1, 8, 1.5);
+      ctx.fillRect(-4, 4, 6, 1.5);
+      ctx.restore();
+    }
+    ctx.shadowBlur = 0;
+  }
+
+  function drawFloaters() {
+    for (const f of floaters) {
+      ctx.globalAlpha = Utils.clamp(f.life, 0, 1);
+      ctx.fillStyle = f.color;
+      ctx.font = "bold 15px 'Trebuchet MS', system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.shadowColor = f.color; ctx.shadowBlur = 8;
+      ctx.fillText(f.text, f.x, f.y);
+    }
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+    ctx.textAlign = "left";
+  }
+
   function drawExit() {
     const e = map.exit;
     const pulse = 0.5 + Math.sin(performance.now() / 300) * 0.5;
@@ -306,13 +414,22 @@ const Game = (() => {
     lightCtx.fillStyle = g;
     lightCtx.beginPath(); lightCtx.arc(px, py, 95, 0, 7); lightCtx.fill();
 
-    // torch cone
+    // torch cone — with a "near-miss" flicker once the battery drops under 20%.
+    // The dying light creates urgency and makes a narrow escape feel earned.
     if (player.torchOn) {
-      const reach = 320, half = 0.55;
+      let flicker = 1;
+      if (player.battery < 20) {
+        const t = performance.now();
+        const wave = Math.sin(t * 0.05) * Math.sin(t * 0.013);
+        flicker = 0.5 + 0.5 * Math.max(0, wave);
+        if (Math.random() < 0.10) flicker *= 0.3;     // brief dropouts
+        flicker = Utils.clamp(flicker, 0.12, 1);
+      }
+      const reach = 320 * (0.6 + 0.4 * flicker), half = 0.55;
       const a = player.facing;
       const cg = lightCtx.createRadialGradient(px, py, 20, px, py, reach);
-      cg.addColorStop(0, "rgba(0,0,0,1)");
-      cg.addColorStop(0.7, "rgba(0,0,0,0.85)");
+      cg.addColorStop(0, `rgba(0,0,0,${flicker})`);
+      cg.addColorStop(0.7, `rgba(0,0,0,${0.85 * flicker})`);
       cg.addColorStop(1, "rgba(0,0,0,0)");
       lightCtx.fillStyle = cg;
       lightCtx.beginPath();

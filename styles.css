@@ -38,14 +38,22 @@ html, body {
   padding: max(10px, env(safe-area-inset-top)) 14px 0;
 }
 .hud-top { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
-.stat { background: var(--panel); border: 1px solid rgba(57,255,20,0.25);
-  border-radius: 8px; padding: 6px 9px; backdrop-filter: blur(3px); }
+.stat { background: var(--panel); border: 1px solid rgba(57,255,20,0.22);
+  border-radius: 12px; padding: 7px 11px;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06); }
 .stat .label { font-size: 9px; letter-spacing: 2px; opacity: 0.7; display: block; margin-bottom: 4px; }
-.bar { width: 110px; height: 9px; background: rgba(255,255,255,0.08);
-  border-radius: 5px; overflow: hidden; }
-.fill { height: 100%; width: 100%; transition: width 0.12s linear; border-radius: 5px; }
-.health .fill { background: linear-gradient(90deg, var(--blood), #ff6b6b); box-shadow: 0 0 8px var(--blood); }
-.battery .fill { background: linear-gradient(90deg, #ffd000, var(--cyan)); box-shadow: 0 0 8px var(--cyan); }
+.bar { width: 110px; height: 10px; background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.10); border-radius: 999px; overflow: hidden; }
+.fill { height: 100%; width: 100%; transition: width 0.12s linear; border-radius: 999px; }
+/* Vitals = glowing radioactive green; Torch = electric blue → warm yellow. */
+.health .fill { background: linear-gradient(90deg, #1f9d3a, var(--neon)); box-shadow: 0 0 10px var(--neon); }
+.battery .fill { background: linear-gradient(90deg, var(--cyan), #ffd000); box-shadow: 0 0 10px var(--cyan); }
+/* Near-miss low-battery state: torch bar flickers amber/red. */
+.battery.low .fill { background: linear-gradient(90deg, #ff8a00, var(--blood));
+  box-shadow: 0 0 14px var(--blood); animation: battlow 0.4s steps(2) infinite; }
+.battery.low { animation: battlow 0.4s steps(2) infinite; }
+@keyframes battlow { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 .keys .value { font-size: 16px; font-weight: bold; color: var(--toxic);
   text-shadow: 0 0 8px var(--toxic); }
 .hud-msg {
@@ -126,3 +134,63 @@ html, body {
   border-radius: 10px; cursor: pointer;
 }
 .hint { margin-top: 16px; font-size: 11px; opacity: 0.55; line-height: 1.6; }
+
+/* ---------- Radio transmission (lore log) ---------- */
+#transmission {
+  position: absolute; left: 50%; bottom: 16%;
+  transform: translate(-50%, 14px);
+  max-width: min(560px, 88vw);
+  background: var(--panel); border: 1px solid rgba(57,255,20,0.22);
+  border-left: 3px solid var(--toxic); border-radius: 12px;
+  padding: 11px 15px; pointer-events: none;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+  opacity: 0; transition: opacity 0.3s, transform 0.3s; z-index: 9;
+}
+#transmission.show { opacity: 1; transform: translate(-50%, 0); }
+.trans-tag { font-size: 9px; letter-spacing: 2px; color: var(--toxic); font-weight: bold; }
+#transmissionText { margin-top: 4px; font-size: 14px; font-style: italic; line-height: 1.45; color: #eaffea; }
+
+/* ---------- Nemesis / named-threat banner ---------- */
+#nemesis {
+  position: absolute; top: 34%; left: 50%; transform: translateX(-50%);
+  text-align: center; white-space: nowrap; pointer-events: none; z-index: 9;
+  color: var(--blood); font-weight: bold; letter-spacing: 3px;
+  font-size: clamp(16px, 5.5vw, 30px); text-shadow: 0 0 22px var(--blood);
+  animation: nemesisIn 2.6s ease forwards;
+}
+@keyframes nemesisIn {
+  0% { opacity: 0; letter-spacing: 14px; }
+  18% { opacity: 1; letter-spacing: 3px; }
+  82% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ---------- Star rating ---------- */
+.stars { font-size: 52px; line-height: 1; margin: 6px 0 4px; }
+.stars .star {
+  display: inline-block; color: rgba(255,255,255,0.13);
+  transition: color 0.3s, text-shadow 0.3s, transform 0.3s;
+}
+.stars .star.earned {
+  color: #ffd000; text-shadow: 0 0 22px #ffd000, 0 0 40px rgba(255,208,0,0.5);
+  animation: starPop 0.5s ease;
+}
+@keyframes starPop {
+  0% { transform: scale(0.2) rotate(-25deg); opacity: 0; }
+  70% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+/* ---------- Win breakdown ---------- */
+.rate { display: flex; justify-content: space-between; align-items: center;
+  max-width: 280px; margin: 5px auto; font-size: 14px; }
+.rate span { opacity: 0.6; font-size: 12px; }
+.rate.ok { color: var(--toxic); }
+.rate.no { color: rgba(255,255,255,0.4); }
+.winscore { margin-top: 14px; font-size: 13px; opacity: 0.85; }
+.winscore .best { color: #ffd000; }
+
+/* ---------- Lore meter (menu) ---------- */
+.lore-meter { margin-top: 16px; font-size: 12px; letter-spacing: 1px; color: var(--toxic); opacity: 0.85; }
+.lore-meter span { font-weight: bold; }

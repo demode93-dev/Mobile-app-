@@ -23,6 +23,7 @@ class Player {
     let { x: mx, y: my } = Input.move;
     const moving = mx !== 0 || my !== 0;
     const sprint = Input.sprint && this.battery > 0;
+    this.sprinting = sprint && moving;   // mutants let you dash past while true
     const spd = this.speed * (sprint ? 1.6 : 1);
 
     if (moving) {
@@ -55,6 +56,15 @@ class Player {
     this.hurtFlash = 0.35;
     this.invuln = 0.6;
     Sound.sfx.hurt();
+  }
+
+  // Continuous contact damage (no invuln gate) — `dps` is damage-per-second so
+  // lingering against a zombie or hazard drains you fast, glancing hits don't.
+  contact(dps, dt) {
+    this.health -= dps * dt;
+    this.hurtFlash = Math.max(this.hurtFlash, 0.3);
+    this._hurtSfxT = (this._hurtSfxT || 0) - dt;
+    if (this._hurtSfxT <= 0) { Sound.sfx.hurt(); this._hurtSfxT = 0.4; }
   }
 
   draw(ctx) {
@@ -97,49 +107,85 @@ class Enemy {
     this.phase = Math.random() * 7;
     this.flash = 0;
 
+    this.scent = 0;          // swarm/nemesis memory of the player's trail
     const boost = 1 + level * 0.06;
     if (type === "zombie") {
-      this.r = 15; this.speed = 58 * boost; this.dmg = 14; this.color = "#5fbf3f"; this.senseR = 230;
+      // Slow, predictable shambler — but HIGH damage if it reaches you.
+      this.r = 15; this.speed = 50 * boost; this.dmg = 34; this.color = "#5fbf3f"; this.senseR = 240;
     } else if (type === "mutant") {
-      this.r = 18; this.speed = 92 * boost; this.dmg = 20; this.color = "#c026d3"; this.senseR = 300;
+      // Stationary corridor hazard. Never moves; only a sprint gets you past.
+      this.r = 21; this.speed = 0; this.dmg = 46; this.color = "#c026d3"; this.senseR = 0;
+    } else if (type === "nemesis") {
+      // Patient Zero — relentless named hunter that paths around corners.
+      this.r = 19; this.speed = 98 * boost; this.dmg = 40; this.color = "#ff1f3d";
+      this.senseR = 460; this.alerted = true; this.name = "PATIENT ZERO";
     } else { // insect swarm unit
-      this.r = 9; this.speed = 120 * boost; this.dmg = 6; this.color = "#ff7a00"; this.senseR = 200;
+      // Very fast, low damage, follows your scent around corners.
+      this.r = 9; this.speed = 134 * boost; this.dmg = 6; this.color = "#ff7a00"; this.senseR = 240;
     }
   }
 
   update(dt, map, player) {
     const d = Utils.dist(this.x, this.y, player.x, player.y);
-    const see = d < this.senseR && GameMap.hasLOS(map, this.x, this.y, player.x, player.y);
-    if (see) {
-      if (!this.alerted && this.type !== "insect") Sound.sfx.growl();
-      this.alerted = true;
+
+    // --- Mutant: stationary hazard. Never moves, blocks the corridor, and
+    //     only hurts you if you touch it WITHOUT sprinting (dash past it). ---
+    if (this.type === "mutant") {
+      this.phase += dt * 4;
+      if (this.flash > 0) this.flash -= dt;
+      if (d < this.r + player.r && !player.sprinting) {
+        player.contact(this.dmg, dt);
+      }
+      return d;
     }
 
-    let ang;
-    if (this.alerted && d < this.senseR * 1.6) {
+    const see = d < this.senseR && GameMap.hasLOS(map, this.x, this.y, player.x, player.y);
+    if (see && !this.alerted && this.type !== "insect") Sound.sfx.growl();
+    if (see) this.alerted = true;
+
+    let ang = null;
+    let hunting = false;
+
+    if (this.type === "insect" || this.type === "nemesis") {
+      // --- Scent tracking: lock on via LOS or proximity, then pursue around
+      //     corners with BFS pathing until the scent trail fades. ---
+      if (see || d < this.r + 64) this.scent = this.type === "nemesis" ? 6 : 2.6;
+      else this.scent = Math.max(0, this.scent - dt);
+
+      if (this.scent > 0) {
+        const step = GameMap.nextStepToward(map, this.x, this.y, player.x, player.y);
+        ang = step ? Math.atan2(step.y, step.x)
+                   : Math.atan2(player.y - this.y, player.x - this.x);
+        if (this.type === "insect") ang += Math.sin(this.phase + performance.now() / 120) * 0.5;
+        hunting = true;
+        this.alerted = true;
+      }
+    } else if (this.alerted && d < this.senseR * 1.6) {
+      // --- Zombie: slow, predictable straight-line shamble. ---
       ang = Math.atan2(player.y - this.y, player.x - this.x);
-      // insects jitter erratically
-      if (this.type === "insect") ang += Math.sin(this.phase + performance.now() / 120) * 0.9;
-    } else {
+      hunting = true;
+    }
+
+    if (ang === null) {
       // wander
       this.wanderT -= dt;
       if (this.wanderT <= 0) { this.wanderAng = Utils.rand(0, 7); this.wanderT = Utils.rand(0.7, 2); }
       ang = this.wanderAng;
     }
 
-    const spd = this.speed * (this.alerted ? 1 : 0.45);
+    const spd = this.speed * (hunting ? 1 : 0.45);
     const dx = Math.cos(ang) * spd * dt;
     const dy = Math.sin(ang) * spd * dt;
     const res = GameMap.moveCircle(map, this.x, this.y, this.r, dx, dy);
-    if (res.x === this.x && res.y === this.y && !this.alerted) {
+    if (res.x === this.x && res.y === this.y && !hunting) {
       this.wanderT = 0; // bumped a wall, repick
     }
     this.x = res.x; this.y = res.y;
     this.phase += dt * 8;
     if (this.flash > 0) this.flash -= dt;
 
-    // contact damage
-    if (d < this.r + player.r) player.damage(this.dmg * dt * 3.2);
+    // contact damage (continuous — zombies/nemesis hit hard if they reach you)
+    if (d < this.r + player.r) player.contact(this.dmg, dt);
     return d;
   }
 
@@ -183,6 +229,29 @@ class Enemy {
       ctx.shadowBlur = 0;
       ctx.fillStyle = "#7CFF00";
       ctx.beginPath(); ctx.arc(-6, -4, 3.2, 0, 7); ctx.arc(6, -4, 3.2, 0, 7); ctx.arc(0, 4, 2.6, 0, 7); ctx.fill();
+    } else if (type === "nemesis") {
+      // Patient Zero — hulking, with a pulsing blood-red aura.
+      const pulse = 1 + Math.sin(this.phase) * 0.12;
+      ctx.shadowColor = "#ff1f3d"; ctx.shadowBlur = 26;
+      ctx.strokeStyle = `rgba(255,31,61,${0.4 + Math.sin(this.phase) * 0.25})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0, 0, r + 8 * pulse, 0, 7); ctx.stroke();
+      ctx.fillStyle = this.flash > 0 ? "#fff" : this.color;
+      ctx.strokeStyle = "#3a0008"; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill(); ctx.stroke();
+      // jagged crown of spikes
+      ctx.fillStyle = "#7a0010";
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + this.phase * 0.3;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        ctx.lineTo(Math.cos(a) * (r + 9), Math.sin(a) * (r + 9));
+        ctx.lineTo(Math.cos(a + 0.3) * r, Math.sin(a + 0.3) * r);
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#ffd000";
+      ctx.beginPath(); ctx.arc(-6, -3, 3, 0, 7); ctx.arc(6, -3, 3, 0, 7); ctx.fill();
     } else { // insect
       ctx.fillStyle = this.flash > 0 ? "#fff" : this.color;
       ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.7, this.phase, 0, 7); ctx.fill();

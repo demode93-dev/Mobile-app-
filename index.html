@@ -34,6 +34,15 @@
       <div class="hud-msg" id="hudMsg"></div>
     </div>
 
+    <!-- Named-threat banner -->
+    <div id="nemesis" class="hidden"></div>
+
+    <!-- Radio transmission / lore log -->
+    <div id="transmission" class="hidden">
+      <span class="trans-tag">▶ INCOMING TRANSMISSION</span>
+      <p id="transmissionText"></p>
+    </div>
+
     <!-- Touch controls -->
     <div id="touch" class="hidden">
       <div id="stick" class="stick-base">
@@ -53,6 +62,7 @@
         <p class="blurb">The specimens are loose. Find <b>3 keycards</b>, reach the exit,
           and don't let the zombies, mutants or swarms catch you in the dark.</p>
         <button id="btnPlay" class="bigbtn">▶ START ESCAPE</button>
+        <div class="lore-meter">LORE FILES RECOVERED: <span id="loreMeter">0 / 6</span></div>
         <div class="hint">Drag the left side to move • Right buttons for torch &amp; sprint<br>(WASD / Arrows + Shift on desktop)</div>
       </div>
     </div>
@@ -68,7 +78,10 @@
     <div id="win" class="overlay hidden">
       <div class="panel">
         <h1 class="title escaped">YOU ESCAPED!</h1>
-        <p id="winStats" class="blurb"></p>
+        <div class="stars" aria-label="star rating">
+          <span class="star">★</span><span class="star">★</span><span class="star">★</span>
+        </div>
+        <div id="winStats" class="blurb"></div>
         <button id="btnNext" class="bigbtn">▶ DEEPER LEVEL</button>
         <button id="btnMenu" class="smallbtn">Main Menu</button>
       </div>
@@ -76,6 +89,7 @@
   </div>
 
   <script src="js/utils.js"></script>
+  <script src="js/lore.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/input.js"></script>
   <script src="js/map.js"></script>
