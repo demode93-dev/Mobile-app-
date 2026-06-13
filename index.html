@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+  />
+  <meta name="theme-color" content="#05070a" />
+  <title>BLACKOUT // Containment Breach</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="game-shell">
+    <canvas id="game"></canvas>
+
+    <!-- ============ HUD (glassmorphism) ============ -->
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="stat-group">
+          <div class="stat-label">VITALS</div>
+          <div class="bar bar-vitals"><span id="vitals-fill"></span></div>
+        </div>
+        <div class="stat-group">
+          <div class="stat-label">TORCH</div>
+          <div class="bar bar-torch"><span id="torch-fill"></span></div>
+        </div>
+      </div>
+      <div class="hud-right">
+        <div class="chip" id="keycard-chip">
+          <span class="chip-icon">🗝</span>
+          <span id="keycard-count">0</span> / <span id="keycard-total">0</span>
+        </div>
+        <div class="chip" id="timer-chip">
+          <span class="chip-icon">⏱</span>
+          <span id="timer">0.0s</span>
+        </div>
+      </div>
+      <div class="hud-stamina">
+        <div class="bar bar-stamina"><span id="stamina-fill"></span></div>
+      </div>
+    </div>
+
+    <!-- ============ Radio transmission (lore log) ============ -->
+    <div id="transmission" class="hidden">
+      <span class="transmission-tag">▶ INCOMING TRANSMISSION</span>
+      <p id="transmission-text"></p>
+    </div>
+
+    <!-- ============ Nemesis / threat banner ============ -->
+    <div id="nemesis-banner" class="hidden">
+      <span id="nemesis-text"></span>
+    </div>
+
+    <!-- ============ Touch controls ============ -->
+    <div id="touch-controls" class="hidden">
+      <div id="joystick">
+        <div id="joystick-thumb"></div>
+      </div>
+      <button id="sprint-btn">SPRINT</button>
+    </div>
+
+    <!-- ============ Main menu ============ -->
+    <div id="menu" class="screen">
+      <div class="screen-inner glass">
+        <h1 class="title-glow">BLACKOUT</h1>
+        <p class="subtitle">// CONTAINMENT BREACH //</p>
+        <p class="flavor">
+          Section 4 is dark. The specimens are loose. Find the keycards,
+          reach the exit — and don't let your torch die.
+        </p>
+        <button class="btn-primary" id="play-btn">ENTER FACILITY</button>
+        <div class="lore-collected">
+          Lore recovered: <span id="lore-meter">0</span> / 6
+        </div>
+        <p class="hint">WASD / Arrows to move · Shift to sprint · Touch joystick on mobile</p>
+      </div>
+    </div>
+
+    <!-- ============ Victory screen (star rating) ============ -->
+    <div id="victory" class="screen hidden">
+      <div class="screen-inner glass">
+        <h1 class="title-glow win">YOU ESCAPED</h1>
+        <div class="stars" id="stars">
+          <span class="star" data-s="1">★</span>
+          <span class="star" data-s="2">★</span>
+          <span class="star" data-s="3">★</span>
+        </div>
+        <ul class="score-breakdown" id="score-breakdown"></ul>
+        <button class="btn-primary" id="replay-btn">REPLAY FOR 3 STARS</button>
+        <button class="btn-secondary" id="menu-btn">MAIN MENU</button>
+      </div>
+    </div>
+
+    <!-- ============ Defeat screen ============ -->
+    <div id="defeat" class="screen hidden">
+      <div class="screen-inner glass">
+        <h1 class="title-glow lose" id="defeat-title">CONSUMED</h1>
+        <p class="flavor" id="defeat-text"></p>
+        <button class="btn-primary" id="retry-btn">TRY AGAIN</button>
+        <button class="btn-secondary" id="defeat-menu-btn">MAIN MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/game.js"></script>
+</body>
+</html>
