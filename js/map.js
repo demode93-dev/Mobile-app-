@@ -68,6 +68,8 @@ const GameMap = (() => {
     for (let i = 0; i < 3; i++) items.push({ type: "keycard", ...takeSpot(), taken: false, bob: Math.random() * 6 });
     for (let i = 0; i < 2 + level; i++) items.push({ type: "battery", ...takeSpot(), taken: false, bob: Math.random() * 6 });
     for (let i = 0; i < 2; i++) items.push({ type: "medkit", ...takeSpot(), taken: false, bob: Math.random() * 6 });
+    // Salvage scrap — feeds the permanent weapon upgrade track.
+    for (let i = 0; i < 3; i++) items.push({ type: "scrap", ...takeSpot(), taken: false, bob: Math.random() * 6 });
 
     // Lore drops (PDA / terminal nodes) — environmental storytelling. Each
     // carries an index into Lore.LOGS so collecting it fires a transmission.

@@ -3,7 +3,7 @@
 const Game = (() => {
   let canvas, ctx, W, H, dpr;
   let state = "menu"; // menu | playing | dead | win
-  let map, player, enemies, particles, floaters, drips;
+  let map, player, enemies, particles, floaters, drips, bolts;
   let dog = null, rescued = 0;
   let level = 1, score = 0, timeLeft, elapsed;
   let cam = { x: 0, y: 0 };
@@ -36,6 +36,20 @@ const Game = (() => {
     try { return localStorage.getItem("labescape.dog") === "1"; } catch { return false; }
   }
 
+  // ---- Weapon progression ----
+  // Scrap is a permanent currency: every 4 pieces buys +6 damage / +4 reach.
+  function scrapTotal() {
+    try { return parseInt(localStorage.getItem("labescape.scrap") || "0", 10) || 0; } catch { return 0; }
+  }
+  function upgradeLevel() { return Math.floor(scrapTotal() / 4); }
+  function applyUpgrades(p) {
+    const u = upgradeLevel();
+    p.attackDmg = 44 + u * 6;
+    p.attackRange = 60 + u * 4;
+  }
+  // Ranged stun bolt unlocks by rank (level). Tier 3 bolts pierce + hit harder.
+  function weaponTier(lvl) { return lvl >= 4 ? 3 : lvl >= 2 ? 2 : 1; }
+
   function start(lvl) {
     level = lvl;
     map = GameMap.make(level, ownsDog());
@@ -43,6 +57,9 @@ const Game = (() => {
     // A previously rescued dog tags along from the start of every later level.
     dog = ownsDog() ? new Dog(map.spawn.x - 30, map.spawn.y) : null;
     rescued = 0;
+    bolts = [];
+    applyUpgrades(player);
+    player.weaponTier = weaponTier(level);
     enemies = [];
     particles = [];
     floaters = [];
@@ -68,6 +85,9 @@ const Game = (() => {
 
     state = "playing";
     flashMsg(level === 1 ? "FIND 3 KEYCARDS — REACH THE EXIT" : `LEVEL ${level} — IT'S WORSE DOWN HERE`, 2.6);
+    // Announce a newly unlocked weapon tier on the level it becomes available.
+    if (level === 2) setTimeout(() => { if (state === "playing") flashMsg("⚡ STUN BOLT ONLINE — fire with attack", 2); }, 2700);
+    if (level === 4) setTimeout(() => { if (state === "playing") flashMsg("⚡ HIGH-VOLTAGE BOLT — pierces enemies", 2); }, 2700);
     Sound.startAmbient();
   }
 
@@ -188,6 +208,7 @@ const Game = (() => {
         });
     }
 
+    updateBolts(dt);
     updateAtmosphere(dt);
 
     if (player.health <= 0) return die();
@@ -224,6 +245,13 @@ const Game = (() => {
       Sound.sfx.pickup(); score += 80;
       floaty(it.x, it.y, "+35 HEALTH", "#ff5577");
       burst(it.x, it.y, "#ff5577", 10);
+    } else if (it.type === "scrap") {
+      try { localStorage.setItem("labescape.scrap", String(scrapTotal() + 1)); } catch {}
+      applyUpgrades(player);                    // upgrades apply immediately
+      Sound.sfx.pickup(); score += 40;
+      const next = 4 - (scrapTotal() % 4);
+      floaty(it.x, it.y, next === 4 ? "WEAPON UPGRADED!" : "+SCRAP", "#ffae42");
+      burst(it.x, it.y, "#ffae42", 9);
     }
   }
 
@@ -297,6 +325,58 @@ const Game = (() => {
     }
     Sound.sfx.swing();
     if (hitAny) { Sound.sfx.splat(); shake = Math.max(shake, 5); }
+
+    // Ranged stun bolt fires along with the swing once unlocked by rank.
+    const tier = player.weaponTier || 1;
+    if (tier >= 2) {
+      const a = player.facing, spd = 520;
+      bolts.push({
+        x: player.x + Math.cos(a) * player.r, y: player.y + Math.sin(a) * player.r,
+        vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, life: 0.7,
+        dmg: tier >= 3 ? 40 : 26, pierce: tier >= 3, hits: 0,
+      });
+      Sound.sfx.zap();
+    }
+  }
+
+  // Stun bolts: travel forward, stun + damage what they hit, fizzle on walls.
+  function updateBolts(dt) {
+    for (let i = bolts.length - 1; i >= 0; i--) {
+      const b = bolts[i];
+      b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+      let gone = b.life <= 0 || GameMap.isWall(map, b.x, b.y);
+      if (!gone) {
+        for (let j = enemies.length - 1; j >= 0; j--) {
+          const e = enemies[j];
+          if (Utils.dist(b.x, b.y, e.x, e.y) < e.r + 5) {
+            const ang = Math.atan2(b.vy, b.vx);
+            const dead = e.hit(b.dmg, ang);
+            e.stun = Math.max(e.stun, 1.6);
+            burst(b.x, b.y, "#36d1ff", 6);
+            if (dead) killEnemy(e, j);
+            b.hits++;
+            if (!b.pierce || b.hits >= 3) { gone = true; }
+            break;
+          }
+        }
+      }
+      if (gone) bolts.splice(i, 1);
+    }
+  }
+
+  function drawBolts() {
+    for (const b of bolts) {
+      const a = Math.atan2(b.vy, b.vx);
+      ctx.save();
+      ctx.translate(b.x, b.y); ctx.rotate(a);
+      ctx.shadowColor = "#36d1ff"; ctx.shadowBlur = 12;
+      ctx.fillStyle = "#bdecff";
+      ctx.fillRect(-10, -2, 20, 4);
+      ctx.fillStyle = "#36d1ff";
+      ctx.fillRect(-6, -1, 14, 2);
+      ctx.restore();
+    }
+    ctx.shadowBlur = 0;
   }
 
   function killEnemy(e, i) {
@@ -390,6 +470,7 @@ const Game = (() => {
     drawExit();
     for (const e of enemies) cullDraw(e);
     if (dog) dog.draw(ctx);
+    drawBolts();
     drawDrips();
     drawParticles();
     drawFloaters();
@@ -529,6 +610,16 @@ const Game = (() => {
       } else if (it.type === "battery") {
         ctx.shadowColor = "#00e5ff"; ctx.fillStyle = "#00e5ff";
         ctx.fillRect(-7, -10, 14, 20); ctx.fillStyle = "#06303a"; ctx.fillRect(-4, -6, 8, 5);
+      } else if (it.type === "scrap") {
+        ctx.shadowColor = "#ffae42"; ctx.fillStyle = "#ffae42";
+        // a little nut/bolt cog
+        ctx.beginPath();
+        for (let k = 0; k < 6; k++) {
+          const aa = (k / 6) * Math.PI * 2;
+          ctx[k ? "lineTo" : "moveTo"](Math.cos(aa) * 9, Math.sin(aa) * 9);
+        }
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#0c1218"; ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, 7); ctx.fill();
       } else {
         ctx.shadowColor = "#ff3366"; ctx.fillStyle = "#fff";
         ctx.fillRect(-10, -10, 20, 20);

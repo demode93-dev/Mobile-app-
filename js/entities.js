@@ -287,6 +287,7 @@ class Enemy {
     this.flash = 0;
     this.faceAng = 0;        // direction the villain is oriented (toward prey)
     this.kx = 0; this.ky = 0; // knockback velocity from player hits
+    this.stun = 0;           // frozen by a stun bolt while > 0
     this.scent = 0;          // swarm/nemesis memory of the player's trail
 
     const boost = 1 + level * 0.06;
@@ -334,6 +335,14 @@ class Enemy {
       const decay = Math.pow(0.0009, dt);
       this.kx *= decay; this.ky *= decay;
       if (Math.hypot(this.kx, this.ky) < 6) { this.kx = 0; this.ky = 0; }
+    }
+
+    // Stunned by a bolt — frozen, harmless, twitching.
+    if (this.stun > 0) {
+      this.stun -= dt;
+      this.phase += dt * 2;
+      if (this.flash > 0) this.flash -= dt;
+      return d;
     }
 
     // --- Mutant: stationary hazard. Blocks the corridor; only hurts you if you
@@ -545,6 +554,17 @@ class Enemy {
     }
     ctx.restore();
     ctx.shadowBlur = 0;
+
+    // Stun arc — crackling electric ring while frozen.
+    if (this.stun > 0) {
+      ctx.strokeStyle = `rgba(54,209,255,${0.5 + Math.random() * 0.4})`;
+      ctx.lineWidth = 2; ctx.shadowColor = "#36d1ff"; ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(x, y, r + 5, Math.random() * 6, Math.random() * 6); ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, r + 5, Math.random() * 6, Math.random() * 6); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
 
     // Health bar above wounded enemies (world space, unrotated).
     if (this.hp < this.maxHp && this.hp > 0) {
