@@ -3,13 +3,15 @@
 const Game = (() => {
   let canvas, ctx, W, H, dpr;
   let state = "menu"; // menu | playing | dead | win
-  let map, player, enemies, particles, floaters;
+  let map, player, enemies, particles, floaters, drips;
   let level = 1, score = 0, timeLeft, elapsed;
   let cam = { x: 0, y: 0 };
   let lightCanvas, lightCtx;
   let msgTimer = 0;
   let shake = 0;
   let nemesisSpawned = false;   // Patient Zero tease — fires once per level
+  let dripTimer = 0;            // ambient water-drip cadence
+  let sprinklerTimer = 0;       // sprinkler hiss cadence while in the wet zone
 
   function boot(c) {
     canvas = c;
@@ -36,7 +38,10 @@ const Game = (() => {
     enemies = [];
     particles = [];
     floaters = [];
+    drips = [];
     nemesisSpawned = false;
+    dripTimer = Utils.rand(1, 3);
+    sprinklerTimer = 0;
     elapsed = 0;
     timeLeft = Math.max(90, 150 - level * 8); // soft pressure: alarm countdown
 
@@ -143,6 +148,8 @@ const Game = (() => {
       if (f.life <= 0) floaters.splice(i, 1);
     }
 
+    updateAtmosphere(dt);
+
     if (player.health <= 0) return die();
     if (timeLeft <= 0) { flashMsg("CONTAINMENT BREACH — they're everywhere", 2); enrage(); timeLeft = 25; }
 
@@ -183,6 +190,50 @@ const Game = (() => {
   // Floaty world-space text that drifts up and fades — pure "juice".
   function floaty(x, y, text, color) {
     floaters.push({ x, y: y - 14, text, color, life: 1.1, vy: -36 });
+  }
+
+  // ---- Atmosphere: ambient drips, sprinkler rain, slippery-floor splashes ----
+  function spawnDrip(x, groundY) {
+    drips.push({ x, y: groundY - Utils.rand(120, 200), vy: Utils.rand(60, 120),
+                 groundY, sprinkler: false });
+  }
+
+  function updateAtmosphere(dt) {
+    // Occasional lone water drip somewhere near the player (off-screen-ish).
+    dripTimer -= dt;
+    if (dripTimer <= 0) {
+      dripTimer = Utils.rand(1.4, 4.2);
+      const dx = player.x + Utils.rand(-W * 0.4, W * 0.4);
+      const dy = player.y + Utils.rand(-H * 0.4, H * 0.4);
+      if (!GameMap.isWall(map, dx, dy)) {
+        spawnDrip(dx, dy);
+        Sound.sfx.drip();
+      }
+    }
+
+    // Inside the sprinkler room: constant rainfall + periodic hiss.
+    if (player.onWet && map.wetRoom) {
+      const r = map.wetRoom;
+      for (let i = 0; i < 2; i++) {
+        const x = (r.x + Math.random() * r.w) * TILE;
+        const y = (r.y + Math.random() * r.h) * TILE;
+        drips.push({ x, y: y - Utils.rand(140, 220), vy: Utils.rand(220, 320),
+                     groundY: y, sprinkler: true });
+      }
+      sprinklerTimer -= dt;
+      if (sprinklerTimer <= 0) { Sound.sfx.sprinkler(); sprinklerTimer = Utils.rand(0.5, 1.1); }
+    }
+
+    // Fall + splash.
+    for (let i = drips.length - 1; i >= 0; i--) {
+      const d = drips[i];
+      d.vy += 600 * dt;
+      d.y += d.vy * dt;
+      if (d.y >= d.groundY) {
+        burst(d.x, d.groundY, "#9fd6ff", d.sprinkler ? 3 : 5);
+        drips.splice(i, 1);
+      }
+    }
   }
 
   // Player melee: damage every enemy within the swing arc, knock them back,
@@ -296,6 +347,7 @@ const Game = (() => {
     drawLogs();
     drawExit();
     for (const e of enemies) cullDraw(e);
+    drawDrips();
     drawParticles();
     drawFloaters();
     player.draw(ctx);
@@ -310,6 +362,38 @@ const Game = (() => {
       ctx.fillStyle = `rgba(255,0,40,${player.hurtFlash * 0.5})`;
       ctx.fillRect(0, 0, W, H);
     }
+
+    // Sprinkler screen droplets — streaks on the "lens" while under the water.
+    if (player && player.onWet) drawScreenDroplets();
+  }
+
+  function drawDrips() {
+    ctx.strokeStyle = "rgba(160,210,255,0.6)";
+    ctx.lineWidth = 2; ctx.lineCap = "round";
+    for (const d of drips) {
+      ctx.beginPath();
+      ctx.moveTo(d.x, d.y);
+      ctx.lineTo(d.x, d.y + (d.sprinkler ? 10 : 6));
+      ctx.stroke();
+    }
+  }
+
+  // Cheap, cached "water on the camera" overlay while in the sprinkler zone.
+  function drawScreenDroplets() {
+    if (!drawScreenDroplets.pts) {
+      drawScreenDroplets.pts = [];
+      for (let i = 0; i < 14; i++)
+        drawScreenDroplets.pts.push({ x: Math.random(), y: Math.random(), r: 4 + Math.random() * 9 });
+    }
+    ctx.save();
+    for (const p of drawScreenDroplets.pts) {
+      const x = p.x * W, y = p.y * H;
+      ctx.fillStyle = "rgba(180,215,255,0.10)";
+      ctx.beginPath(); ctx.arc(x, y, p.r, 0, 7); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.18)";
+      ctx.beginPath(); ctx.arc(x - p.r * 0.3, y - p.r * 0.3, p.r * 0.35, 0, 7); ctx.fill();
+    }
+    ctx.restore();
   }
 
   function cullDraw(e) {
@@ -336,18 +420,55 @@ const Game = (() => {
           ctx.fillRect(px + 2, py + 2, TILE - 4, 3);
         } else {
           // floor tiles, checker with toxic grime
+          const wet = map.wet && map.wet.has(x + "," + y);
           const dark = (x + y) % 2 === 0;
-          ctx.fillStyle = dark ? "#0c1218" : "#0e1620";
-          ctx.fillRect(px, py, TILE, TILE);
-          ctx.strokeStyle = "rgba(57,255,20,0.05)";
-          ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
-          if ((x * 7 + y * 13) % 11 === 0) {
-            ctx.fillStyle = "rgba(124,255,0,0.06)";
-            ctx.beginPath(); ctx.arc(px + TILE / 2, py + TILE / 2, 10, 0, 7); ctx.fill();
+          if (wet) {
+            // flooded sprinkler floor — cold blue sheen with a wet glint
+            ctx.fillStyle = dark ? "#0a1622" : "#0c1c2c";
+            ctx.fillRect(px, py, TILE, TILE);
+            ctx.fillStyle = "rgba(120,190,255,0.10)";
+            ctx.fillRect(px, py, TILE, TILE);
+            const gl = 0.5 + 0.5 * Math.sin(performance.now() / 400 + x + y);
+            ctx.fillStyle = `rgba(160,210,255,${0.05 + gl * 0.06})`;
+            ctx.beginPath(); ctx.ellipse(px + TILE / 2, py + TILE * 0.7, TILE * 0.32, TILE * 0.14, 0, 0, 7); ctx.fill();
+          } else {
+            ctx.fillStyle = dark ? "#0c1218" : "#0e1620";
+            ctx.fillRect(px, py, TILE, TILE);
+            ctx.strokeStyle = "rgba(57,255,20,0.05)";
+            ctx.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
+            if ((x * 7 + y * 13) % 11 === 0) {
+              ctx.fillStyle = "rgba(124,255,0,0.06)";
+              ctx.beginPath(); ctx.arc(px + TILE / 2, py + TILE / 2, 10, 0, 7); ctx.fill();
+            }
           }
         }
       }
     }
+
+    // Ceiling light fixtures (drawn on the floor as the housing; the glow is
+    // punched into the darkness overlay in drawLighting).
+    for (const lt of map.lights) {
+      if (lt.x < cam.x - 40 || lt.x > cam.x + W + 40 ||
+          lt.y < cam.y - 40 || lt.y > cam.y + H + 40) continue;
+      const on = lightFlicker(lt) > 0.15;
+      ctx.fillStyle = "#1a2230";
+      ctx.fillRect(lt.x - 14, lt.y - 4, 28, 8);
+      ctx.fillStyle = on ? "rgba(220,240,255,0.9)" : "rgba(60,70,85,0.8)";
+      ctx.fillRect(lt.x - 11, lt.y - 2, 22, 4);
+    }
+  }
+
+  // Per-light flicker factor 0..1. Broken fixtures stutter hard; good ones
+  // hum with a faint waver.
+  function lightFlicker(lt) {
+    const t = performance.now() / 1000;
+    if (lt.broken) {
+      const f = Math.sin(t * 13 + lt.phase) * Math.sin(t * 7.3 + lt.phase * 2);
+      let v = 0.35 + 0.65 * Math.max(0, f);
+      if (Math.random() < 0.06) v *= 0.15;       // random blackout blink
+      return v;
+    }
+    return 0.8 + 0.2 * Math.sin(t * 2 + lt.phase);
   }
 
   function drawItems() {
@@ -451,6 +572,21 @@ const Game = (() => {
     g.addColorStop(1, "rgba(0,0,0,0)");
     lightCtx.fillStyle = g;
     lightCtx.beginPath(); lightCtx.arc(px, py, 95, 0, 7); lightCtx.fill();
+
+    // Flickering ceiling-light pools — reveal stuttering patches of the room
+    // (and cast enemies into tense silhouette when a bulb dies).
+    for (const lt of map.lights) {
+      const lx = lt.x - cam.x + ox, ly = lt.y - cam.y + oy;
+      if (lx < -120 || lx > W + 120 || ly < -120 || ly > H + 120) continue;
+      const f = lightFlicker(lt);
+      if (f < 0.12) continue;
+      const rad = 110 * f;
+      const lg2 = lightCtx.createRadialGradient(lx, ly, 6, lx, ly, rad);
+      lg2.addColorStop(0, `rgba(0,0,0,${0.9 * f})`);
+      lg2.addColorStop(1, "rgba(0,0,0,0)");
+      lightCtx.fillStyle = lg2;
+      lightCtx.beginPath(); lightCtx.arc(lx, ly, rad, 0, 7); lightCtx.fill();
+    }
 
     // torch cone — with a "near-miss" flicker once the battery drops under 20%.
     // The dying light creates urgency and makes a narrow escape feel earned.

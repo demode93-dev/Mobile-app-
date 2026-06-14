@@ -85,7 +85,31 @@ const GameMap = (() => {
       enemySpots.push({ x: (r.cx + 0.5) * TILE, y: (r.cy + 0.5) * TILE });
     }
 
+    // Ceiling light fixtures — flickering pools of light. Some are "broken"
+    // and barely work, throwing the corridors into tense, stuttering shadow.
+    const lights = [];
+    const lightCount = Math.min(rooms.length, 7);
+    for (let i = 0; i < lightCount; i++) {
+      const r = rooms[i % rooms.length];
+      lights.push({
+        x: (r.cx + 0.5) * TILE, y: (r.cy + 0.5) * TILE,
+        phase: Math.random() * 7, broken: Math.random() < 0.45,
+      });
+    }
+
+    // Sprinkler zone — one flooded room: slippery floor, falling water, the
+    // hiss of overhead sprinklers. Never the spawn room.
+    const wet = new Set();
+    let wetRoom = null;
+    if (rooms.length > 2) {
+      wetRoom = rooms[1 + Utils.randInt(0, rooms.length - 2)];
+      for (let y = wetRoom.y; y < wetRoom.y + wetRoom.h; y++)
+        for (let x = wetRoom.x; x < wetRoom.x + wetRoom.w; x++)
+          wet.add(x + "," + y);
+    }
+
     return { grid, cols, rows, spawn, exit, items, logs, enemySpots, rooms,
+             lights, wet, wetRoom,
              pixW: cols * TILE, pixH: rows * TILE };
   }
 
@@ -183,5 +207,12 @@ const GameMap = (() => {
     return { x: Math.cos(a), y: Math.sin(a) };
   }
 
-  return { make, isWall, moveCircle, hasLOS, nextStepToward, WALL, FLOOR, EXIT };
+  // Is this pixel position inside the sprinkler/flooded zone?
+  function isWet(map, px, py) {
+    if (!map.wet || map.wet.size === 0) return false;
+    const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
+    return map.wet.has(tx + "," + ty);
+  }
+
+  return { make, isWall, moveCircle, hasLOS, nextStepToward, isWet, WALL, FLOOR, EXIT };
 })();

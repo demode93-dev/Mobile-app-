@@ -67,6 +67,8 @@ const Sound = (() => {
     growl:    () => { tone(90, 0.5, "sawtooth", 0.22, 60); },
     alarm:    () => { tone(880, 0.18, "square", 0.12, 660); },
     step:     () => { noise(0.04, 0.05, 1200); },
+    drip:     () => { tone(1500, 0.06, "sine", 0.10, 600); tone(700, 0.10, "sine", 0.06, 300); },
+    sprinkler:() => { noise(0.3, 0.05, 2200); },
     swing:    () => { noise(0.10, 0.16, 1700); tone(320, 0.07, "square", 0.10, 140); },
     splat:    () => { noise(0.10, 0.22, 520); tone(140, 0.10, "sawtooth", 0.18, 60); },
     kill:     () => { noise(0.18, 0.26, 360); tone(160, 0.22, "sawtooth", 0.28, 50); },

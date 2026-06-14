@@ -29,6 +29,8 @@ class Player {
     this.walkPhase = 0;
     this.stepTimer = 0;
     this.moving = false;
+    this.vx = 0; this.vy = 0;   // velocity (enables slippery wet floors)
+    this.onWet = false;
     // --- Combat ---
     this.attackDmg = 44;
     this.attackRange = 60;   // reach in pixels (plus enemy radius)
@@ -47,14 +49,30 @@ class Player {
     this.sprinting = sprint && moving;   // mutants let you dash past while true
     const spd = this.speed * (sprint ? 1.6 : 1);
 
-    if (moving) {
-      this.facing = Math.atan2(my, mx);
-      const res = GameMap.moveCircle(map, this.x, this.y, this.r, mx * spd * dt, my * spd * dt);
-      this.x = res.x; this.y = res.y;
+    if (moving) this.facing = Math.atan2(my, mx);
+
+    // Velocity-based movement. On dry floor acceleration is near-instant (feels
+    // responsive); on the flooded sprinkler floor it's sluggish, so you slide.
+    this.onWet = GameMap.isWet(map, this.x, this.y);
+    const accel = this.onWet ? 3.2 : 26;
+    const k = Math.min(1, accel * dt);
+    this.vx += (mx * spd - this.vx) * k;
+    this.vy += (my * spd - this.vy) * k;
+
+    const res = GameMap.moveCircle(map, this.x, this.y, this.r, this.vx * dt, this.vy * dt);
+    if (res.x === this.x) this.vx *= 0.2;   // bumped a wall — bleed off momentum
+    if (res.y === this.y) this.vy *= 0.2;
+    this.x = res.x; this.y = res.y;
+
+    const speedNow = Math.hypot(this.vx, this.vy);
+    if (speedNow > 12) {
       this.walkPhase += dt * (sprint ? 16 : 10);
       this.stepTimer -= dt;
-      if (this.stepTimer <= 0) { Sound.sfx.step(); this.stepTimer = sprint ? 0.28 : 0.42; }
+      if (this.stepTimer <= 0) {
+        Sound.sfx.step(); this.stepTimer = sprint ? 0.28 : 0.42;
+      }
     }
+    this.moving = speedNow > 12;
 
     // Torch drains battery; sprint drains faster.
     if (this.torchOn) this.battery -= dt * 1.6;
