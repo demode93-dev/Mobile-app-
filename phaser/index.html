@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#05060a" />
+  <title>LAB ESCAPE — Phaser 3</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #05060a; overflow: hidden;
+      font-family: "Trebuchet MS", system-ui, sans-serif; color: #eaffea;
+      user-select: none; -webkit-user-select: none; touch-action: none; }
+    #game { width: 100vw; height: 100vh; }
+
+    /* Lemon Squeezy paywall overlay (premium floors 6+) */
+    #paywall {
+      position: fixed; inset: 0; z-index: 50; display: none;
+      align-items: center; justify-content: center; padding: 24px;
+      background: radial-gradient(circle at 50% 35%, rgba(20,0,30,0.6), rgba(0,0,0,0.94));
+    }
+    #paywall.show { display: flex; }
+    .pw-panel {
+      width: min(420px, 92vw); text-align: center; padding: 30px 26px; border-radius: 16px;
+      background: rgba(8,12,20,0.9); border: 1px solid rgba(57,255,20,0.3);
+      box-shadow: 0 0 40px rgba(57,255,20,0.15);
+    }
+    .pw-panel h1 { font-size: 28px; color: #7CFF00; text-shadow: 0 0 18px #7CFF00; letter-spacing: 2px; }
+    .pw-panel p { margin: 16px 0; line-height: 1.6; opacity: 0.9; font-size: 15px; }
+    .pw-panel b { color: #ffcf5c; }
+    .pw-btn {
+      width: 100%; padding: 15px; margin-top: 8px; font-size: 16px; font-weight: bold;
+      letter-spacing: 1px; border: none; border-radius: 12px; cursor: pointer;
+      background: linear-gradient(180deg, #7CFF00, #2db300); color: #001a00;
+      box-shadow: 0 0 22px rgba(124,255,0,0.5);
+    }
+    .pw-btn.secondary { background: transparent; color: #9affb0;
+      border: 1px solid rgba(57,255,20,0.3); box-shadow: none; margin-top: 12px; }
+    .pw-note { margin-top: 14px; font-size: 11px; opacity: 0.5; }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+
+  <!-- Lemon Squeezy paywall (premium floor unlock) -->
+  <div id="paywall">
+    <div class="pw-panel">
+      <h1>🔒 PREMIUM FLOORS</h1>
+      <p>You've reached the <b>lower containment levels (Floor 6+)</b>.<br>
+         Unlock the rest of the lab to keep escaping.</p>
+      <button class="pw-btn" id="pw-unlock">Unlock — $4.99</button>
+      <button class="pw-btn secondary" id="pw-cancel">Back to safe floors</button>
+      <div class="pw-note">Payments via Lemon Squeezy (placeholder — see js/payments.js)</div>
+    </div>
+  </div>
+
+  <!-- Phaser 3 via CDN — no build tools, Netlify/Pages friendly -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+  <script src="js/payments.js"></script>
+  <script src="js/boot-scene.js"></script>
+  <script src="js/game-scene.js"></script>
+  <script src="js/ui-scene.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
