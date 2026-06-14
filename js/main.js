@@ -70,11 +70,16 @@ const UI = (() => {
       s.classList.remove("earned");
       setTimeout(() => { if (i < stars) s.classList.add("earned"); }, 280 + i * 300);
     });
+    const rescuedLine = detail.animals
+      ? `<div class="rate ${detail.rescued === detail.animals ? "ok" : "no"}">` +
+          `🐾 Animals rescued <span>(${detail.rescued}/${detail.animals})</span></div>`
+      : "";
     el("winStats").innerHTML =
       `<div class="rate ${detail.torchOk ? "ok" : "no"}">` +
         `${detail.torchOk ? "★" : "☆"} Torch &gt; 50% <span>(${detail.torch}%)</span></div>` +
       `<div class="rate ${detail.timeOk ? "ok" : "no"}">` +
         `${detail.timeOk ? "★" : "☆"} Under 90s <span>(${detail.time}s)</span></div>` +
+      rescuedLine +
       `<div class="winscore">Level ${level} cleared • Score <b>${score}</b>` +
         `${best > stars ? `<br><span class="best">Best: ${best}★</span>` : ""}</div>`;
     win.classList.remove("hidden");

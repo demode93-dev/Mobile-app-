@@ -6,7 +6,7 @@ const GameMap = (() => {
   // tile codes
   const WALL = 1, FLOOR = 0, EXIT = 2;
 
-  function make(level) {
+  function make(level, ownsDog) {
     const cols = 22 + Math.min(level * 2, 10);
     const rows = 16 + Math.min(level * 2, 8);
     const grid = [];
@@ -97,6 +97,20 @@ const GameMap = (() => {
       });
     }
 
+    // Caged lab animals to rescue. One cage holds a dog (the companion) unless
+    // the player already has one. `ownsDog` is passed in by the game.
+    const animals = [];
+    const kinds = ["rabbit", "monkey", "rat", "cat"];
+    const animalCount = 2 + Utils.randInt(0, 2);
+    if (!ownsDog) {
+      const s = takeSpot();
+      animals.push({ ...s, kind: "dog", freed: false });
+    }
+    for (let i = 0; i < animalCount; i++) {
+      const s = takeSpot();
+      animals.push({ ...s, kind: Utils.choice(kinds), freed: false });
+    }
+
     // Sprinkler zone — one flooded room: slippery floor, falling water, the
     // hiss of overhead sprinklers. Never the spawn room.
     const wet = new Set();
@@ -109,7 +123,7 @@ const GameMap = (() => {
     }
 
     return { grid, cols, rows, spawn, exit, items, logs, enemySpots, rooms,
-             lights, wet, wetRoom,
+             lights, wet, wetRoom, animals,
              pixW: cols * TILE, pixH: rows * TILE };
   }
 

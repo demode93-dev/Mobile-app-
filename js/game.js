@@ -4,6 +4,7 @@ const Game = (() => {
   let canvas, ctx, W, H, dpr;
   let state = "menu"; // menu | playing | dead | win
   let map, player, enemies, particles, floaters, drips;
+  let dog = null, rescued = 0;
   let level = 1, score = 0, timeLeft, elapsed;
   let cam = { x: 0, y: 0 };
   let lightCanvas, lightCtx;
@@ -31,10 +32,17 @@ const Game = (() => {
     lightCanvas.width = W; lightCanvas.height = H;
   }
 
+  function ownsDog() {
+    try { return localStorage.getItem("labescape.dog") === "1"; } catch { return false; }
+  }
+
   function start(lvl) {
     level = lvl;
-    map = GameMap.make(level);
+    map = GameMap.make(level, ownsDog());
     player = new Player(map.spawn.x, map.spawn.y);
+    // A previously rescued dog tags along from the start of every later level.
+    dog = ownsDog() ? new Dog(map.spawn.x - 30, map.spawn.y) : null;
+    rescued = 0;
     enemies = [];
     particles = [];
     floaters = [];
@@ -146,6 +154,38 @@ const Game = (() => {
       const f = floaters[i];
       f.y += f.vy * dt; f.vy *= 0.9; f.life -= dt;
       if (f.life <= 0) floaters.splice(i, 1);
+    }
+
+    // Rescue caged lab animals (the dog cage grants the companion).
+    for (const a of map.animals) {
+      if (a.freed) continue;
+      if (Utils.dist(player.x, player.y, a.x, a.y) < player.r + 22) {
+        a.freed = true;
+        rescued++;
+        score += 300;
+        Sound.sfx.rescue();
+        if (a.kind === "dog") {
+          try { localStorage.setItem("labescape.dog", "1"); } catch {}
+          dog = new Dog(a.x, a.y);
+          flashMsg("RESCUED A DOG — IT'S WITH YOU NOW", 2);
+          floaty(a.x, a.y, "GOOD BOY!", "#ffcf5c");
+        } else {
+          floaty(a.x, a.y, `RESCUED ${a.kind.toUpperCase()}!`, "#7CFF00");
+        }
+        burst(a.x, a.y, "#ffcf5c", 14);
+      }
+    }
+
+    // Companion dog: follows, barks at threats, sniffs loot.
+    if (dog) {
+      dog.update(dt, map, player, enemies,
+        (dg) => { Sound.sfx.bark(); shake = Math.max(shake, 2); },
+        (dg, item) => {
+          // little sniff sparkle drifting toward the loot it found
+          const a = Math.atan2(item.y - dg.y, item.x - dg.x);
+          particles.push({ x: dg.x + Math.cos(a) * 14, y: dg.y + Math.sin(a) * 14,
+            vx: Math.cos(a) * 40, vy: Math.sin(a) * 40, life: 0.6, color: "#7CFF00", r: 2 });
+        });
     }
 
     updateAtmosphere(dt);
@@ -322,6 +362,7 @@ const Game = (() => {
     UI.showWin(level, Math.floor(score), secs, stars, best, {
       torchOk: torchPct > 50, torch: torchPct,
       timeOk: secs < 90, time: secs.toFixed(1),
+      rescued, animals: map.animals.length,
     });
   }
 
@@ -345,8 +386,10 @@ const Game = (() => {
     drawFloor();
     drawItems();
     drawLogs();
+    drawAnimals();
     drawExit();
     for (const e of enemies) cullDraw(e);
+    if (dog) dog.draw(ctx);
     drawDrips();
     drawParticles();
     drawFloaters();
@@ -493,6 +536,34 @@ const Game = (() => {
       }
       ctx.restore();
     }
+  }
+
+  const ANIMAL_ICON = { dog: "🐕", rabbit: "🐇", monkey: "🐒", rat: "🐀", cat: "🐈" };
+  function drawAnimals() {
+    const now = performance.now();
+    for (const a of map.animals) {
+      if (a.freed) continue;
+      const pulse = 0.5 + 0.5 * Math.sin(now / 300 + a.x);
+      ctx.save();
+      ctx.translate(a.x, a.y);
+      // cage glow (dog cage glows warm gold to draw the eye)
+      ctx.shadowColor = a.kind === "dog" ? "#ffcf5c" : "#9fd6ff";
+      ctx.shadowBlur = 8 + pulse * 10;
+      ctx.fillStyle = a.kind === "dog" ? "rgba(255,207,92,0.18)" : "rgba(159,214,255,0.12)";
+      ctx.fillRect(-14, -14, 28, 28);
+      ctx.shadowBlur = 0;
+      // captive
+      ctx.font = "16px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText(ANIMAL_ICON[a.kind] || "🐾", 0, 6);
+      // cage bars
+      ctx.strokeStyle = "rgba(180,200,220,0.7)"; ctx.lineWidth = 1.5;
+      for (let bx = -12; bx <= 12; bx += 6) {
+        ctx.beginPath(); ctx.moveTo(bx, -14); ctx.lineTo(bx, 14); ctx.stroke();
+      }
+      ctx.strokeRect(-14, -14, 28, 28);
+      ctx.restore();
+    }
+    ctx.textAlign = "left";
   }
 
   function drawLogs() {

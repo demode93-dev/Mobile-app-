@@ -187,6 +187,95 @@ class Player {
   }
 }
 
+// Rescued dog companion: follows the player, barks to warn of nearby threats,
+// and sniffs out the nearest loot.
+class Dog {
+  constructor(x, y) {
+    this.x = x; this.y = y; this.r = 11;
+    this.speed = 200;
+    this.facing = 0;
+    this.phase = Math.random() * 7;
+    this.barkCd = 0;
+    this.sniffCd = 0;
+    this.bark = 0;          // bark animation/alert timer
+    this.sniffTarget = null;
+  }
+
+  update(dt, map, player, enemies, onBark, onSniff) {
+    const d = Utils.dist(this.x, this.y, player.x, player.y);
+    // Follow, but keep a little personal space so it doesn't jitter on the player.
+    if (d > 46) {
+      const step = GameMap.nextStepToward(map, this.x, this.y, player.x, player.y) ||
+        { x: Math.cos(0), y: 0 };
+      const ang = Math.atan2(step.y, step.x);
+      this.facing = ang;
+      const spd = this.speed * (d > 160 ? 1.25 : 1);  // catch up if far
+      const res = GameMap.moveCircle(map, this.x, this.y, this.r, Math.cos(ang) * spd * dt, Math.sin(ang) * spd * dt);
+      this.x = res.x; this.y = res.y;
+    }
+    this.phase += dt * 10;
+    if (this.bark > 0) this.bark -= dt;
+    if (this.barkCd > 0) this.barkCd -= dt;
+    if (this.sniffCd > 0) this.sniffCd -= dt;
+
+    // Bark when a threat gets close.
+    if (this.barkCd <= 0) {
+      let near = null, nd = 200;
+      for (const e of enemies) {
+        const ed = Utils.dist(this.x, this.y, e.x, e.y);
+        if (ed < nd) { nd = ed; near = e; }
+      }
+      if (near) { this.bark = 0.6; this.barkCd = 2.2; onBark && onBark(this, near); }
+    }
+
+    // Sniff out the nearest loot every few seconds.
+    if (this.sniffCd <= 0 && map.items) {
+      let best = null, bd = 360;
+      for (const it of map.items) {
+        if (it.taken) continue;
+        const id = Utils.dist(this.x, this.y, it.x, it.y);
+        if (id < bd) { bd = id; best = it; }
+      }
+      this.sniffTarget = best;
+      if (best) { this.sniffCd = 2.8; onSniff && onSniff(this, best); }
+      else this.sniffCd = 1.5;
+    }
+  }
+
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    // shadow
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.beginPath(); ctx.ellipse(0, this.r * 0.7, this.r * 0.9, this.r * 0.35, 0, 0, 7); ctx.fill();
+    ctx.rotate(this.facing);
+    const wob = Math.sin(this.phase) * 1.5;
+    // body
+    ctx.fillStyle = "#c79b6b";
+    ctx.beginPath(); ctx.ellipse(0, 0, this.r, this.r * 0.7, 0, 0, 7); ctx.fill();
+    // tail (wags)
+    ctx.strokeStyle = "#a87f50"; ctx.lineWidth = 3; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(-this.r * 0.8, 0);
+    ctx.lineTo(-this.r * 1.4, Math.sin(this.phase * 2) * 5); ctx.stroke();
+    // head forward
+    ctx.fillStyle = "#d8ad7a";
+    ctx.beginPath(); ctx.arc(this.r * 0.7, wob, this.r * 0.6, 0, 7); ctx.fill();
+    // ear + snout + eye
+    ctx.fillStyle = "#8a6238";
+    ctx.beginPath(); ctx.ellipse(this.r * 0.5, wob - this.r * 0.4, 3, 5, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = "#3a2a16";
+    ctx.beginPath(); ctx.arc(this.r * 1.15, wob, 2.4, 0, 7); ctx.fill();
+    ctx.restore();
+    // bark "!" alert
+    if (this.bark > 0) {
+      ctx.fillStyle = "#ffcf5c"; ctx.font = "bold 16px 'Trebuchet MS', sans-serif";
+      ctx.textAlign = "center"; ctx.shadowColor = "#ffcf5c"; ctx.shadowBlur = 8;
+      ctx.fillText("!", this.x, this.y - this.r - 6);
+      ctx.shadowBlur = 0; ctx.textAlign = "left";
+    }
+  }
+}
+
 class Enemy {
   constructor(type, x, y, level) {
     this.type = type;

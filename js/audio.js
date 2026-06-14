@@ -68,6 +68,8 @@ const Sound = (() => {
     alarm:    () => { tone(880, 0.18, "square", 0.12, 660); },
     step:     () => { noise(0.04, 0.05, 1200); },
     drip:     () => { tone(1500, 0.06, "sine", 0.10, 600); tone(700, 0.10, "sine", 0.06, 300); },
+    bark:     () => { tone(420, 0.07, "square", 0.22, 260); tone(300, 0.09, "square", 0.16, 180); },
+    rescue:   () => { [523,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,0.16,"triangle",0.26),i*90)); },
     sprinkler:() => { noise(0.3, 0.05, 2200); },
     swing:    () => { noise(0.10, 0.16, 1700); tone(320, 0.07, "square", 0.10, 140); },
     splat:    () => { noise(0.10, 0.22, 520); tone(140, 0.10, "sawtooth", 0.18, 60); },
