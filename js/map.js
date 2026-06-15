@@ -66,8 +66,7 @@ const GameMap = (() => {
 
     const items = [];
     for (let i = 0; i < 3; i++) items.push({ type: "keycard", ...takeSpot(), taken: false, bob: Math.random() * 6 });
-    for (let i = 0; i < 2 + level; i++) items.push({ type: "battery", ...takeSpot(), taken: false, bob: Math.random() * 6 });
-    for (let i = 0; i < 2; i++) items.push({ type: "medkit", ...takeSpot(), taken: false, bob: Math.random() * 6 });
+    for (let i = 0; i < 3; i++) items.push({ type: "medkit", ...takeSpot(), taken: false, bob: Math.random() * 6 });
     // Salvage scrap — feeds the permanent weapon upgrade track.
     for (let i = 0; i < 3; i++) items.push({ type: "scrap", ...takeSpot(), taken: false, bob: Math.random() * 6 });
 
@@ -87,16 +86,22 @@ const GameMap = (() => {
       enemySpots.push({ x: (r.cx + 0.5) * TILE, y: (r.cy + 0.5) * TILE });
     }
 
-    // Ceiling light fixtures — flickering pools of light. Some are "broken"
-    // and barely work, throwing the corridors into tense, stuttering shadow.
+    // Ceiling light fixtures — the lab's only illumination now. One per room
+    // plus scattered corridor lights so floors are navigable; some are "broken"
+    // and stutter, throwing the halls into tense shadow.
     const lights = [];
-    const lightCount = Math.min(rooms.length, 7);
-    for (let i = 0; i < lightCount; i++) {
-      const r = rooms[i % rooms.length];
+    for (const r of rooms) {
       lights.push({
         x: (r.cx + 0.5) * TILE, y: (r.cy + 0.5) * TILE,
-        phase: Math.random() * 7, broken: Math.random() < 0.45,
+        phase: Math.random() * 7, broken: Math.random() < 0.3,
       });
+    }
+    // Extra corridor lights on random open floor tiles.
+    const extraLights = Math.min(6, floors.length);
+    for (let i = 0; i < extraLights; i++) {
+      const f = floors[Utils.randInt(0, floors.length - 1)];
+      lights.push({ x: (f.x + 0.5) * TILE, y: (f.y + 0.5) * TILE,
+                    phase: Math.random() * 7, broken: Math.random() < 0.35 });
     }
 
     // Caged lab animals to rescue. One cage holds a dog (the companion) unless

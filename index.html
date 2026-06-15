@@ -22,9 +22,9 @@
           <span class="label">VITALS</span>
           <div class="bar"><div id="healthFill" class="fill"></div></div>
         </div>
-        <div class="stat battery">
-          <span class="label">TORCH</span>
-          <div class="bar"><div id="batteryFill" class="fill"></div></div>
+        <div class="stat stamina">
+          <span class="label">STAMINA</span>
+          <div class="bar"><div id="staminaFill" class="fill"></div></div>
         </div>
         <div class="stat keys">
           <span class="label">KEYCARDS</span>
@@ -51,7 +51,6 @@
       <div class="action-buttons">
         <button id="btnAttack" class="abtn abtn-attack" aria-label="Attack">🔪</button>
         <button id="btnSprint" class="abtn" aria-label="Sprint">⚡</button>
-        <button id="btnTorch" class="abtn abtn-small" aria-label="Flashlight">🔦</button>
       </div>
     </div>
 
@@ -65,7 +64,8 @@
           before <b>Patient Zero</b> finds you.</p>
         <button id="btnPlay" class="bigbtn">▶ START ESCAPE</button>
         <div class="lore-meter">LORE FILES RECOVERED: <span id="loreMeter">0 / 6</span></div>
-        <div class="hint">Drag left to move • 🔪 attack · ⚡ sprint · 🔦 torch<br>(WASD/Arrows · Space/J attack · Shift sprint · F torch)</div>
+        <button id="btnShop" class="smallbtn">🐾 DOG SHOP</button>
+        <div class="hint">Drag left to move • 🔪 attack · ⚡ sprint<br>(WASD/Arrows · Space/J attack · Shift sprint)</div>
       </div>
     </div>
 
@@ -73,7 +73,8 @@
       <div class="panel">
         <h1 class="title dead">YOU DIDN'T MAKE IT</h1>
         <p id="goStats" class="blurb"></p>
-        <button id="btnRetry" class="bigbtn">↻ TRY AGAIN</button>
+        <button id="btnRevive" class="bigbtn">📺 REVIVE — WATCH AD</button>
+        <button id="btnRetry" class="smallbtn">↻ Try Again</button>
       </div>
     </div>
 
@@ -85,13 +86,25 @@
         </div>
         <div id="winStats" class="blurb"></div>
         <button id="btnNext" class="bigbtn">▶ DEEPER LEVEL</button>
+        <button id="btnShare" class="smallbtn">📤 Share Rescue Certificate</button>
         <button id="btnMenu" class="smallbtn">Main Menu</button>
+      </div>
+    </div>
+
+    <!-- Dog skin shop (cosmetic monetization) -->
+    <div id="shop" class="overlay hidden">
+      <div class="panel">
+        <h1 class="title" style="font-size:32px">🐾 DOG SHOP</h1>
+        <p class="blurb">Customise your rescued companion.</p>
+        <div id="shopList" class="shop-list"></div>
+        <button id="btnShopClose" class="smallbtn">Back</button>
       </div>
     </div>
   </div>
 
   <script src="js/utils.js"></script>
   <script src="js/lore.js"></script>
+  <script src="js/commerce.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/input.js"></script>
   <script src="js/map.js"></script>

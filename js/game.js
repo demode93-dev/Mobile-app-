@@ -4,7 +4,7 @@ const Game = (() => {
   let canvas, ctx, W, H, dpr;
   let state = "menu"; // menu | playing | dead | win
   let map, player, enemies, particles, floaters, drips, bolts;
-  let dog = null, rescued = 0;
+  let dog = null, rescued = 0, reviveUsed = false;
   let level = 1, score = 0, timeLeft, elapsed;
   let cam = { x: 0, y: 0 };
   let lightCanvas, lightCtx;
@@ -57,6 +57,7 @@ const Game = (() => {
     // A previously rescued dog tags along from the start of every later level.
     dog = ownsDog() ? new Dog(map.spawn.x - 30, map.spawn.y) : null;
     rescued = 0;
+    reviveUsed = false;
     bolts = [];
     applyUpgrades(player);
     player.weaponTier = weaponTier(level);
@@ -72,14 +73,14 @@ const Game = (() => {
 
     // Populate enemies from spawn rooms, more & nastier each level.
     const spots = map.enemySpots.slice();
-    const zCount = 4 + level;
+    const zCount = 3 + level;
     const mCount = Math.min(1 + Math.floor(level / 2), 6);
     const swarms = 1 + Math.floor(level / 2);
     for (let i = 0; i < zCount; i++) spawnFrom(spots, "zombie");
     for (let i = 0; i < mCount; i++) spawnFrom(spots, "mutant");
     for (let s = 0; s < swarms; s++) {
       const base = Utils.choice(map.enemySpots);
-      for (let i = 0; i < 5; i++)
+      for (let i = 0; i < 4; i++)
         enemies.push(new Enemy("insect", base.x + Utils.rand(-30, 30), base.y + Utils.rand(-30, 30), level));
     }
 
@@ -234,12 +235,6 @@ const Game = (() => {
       floaty(it.x, it.y, "+1 KEYCARD!", "#7CFF00");
       burst(it.x, it.y, "#7CFF00", 18);
       shake = Math.max(shake, 3);
-    } else if (it.type === "battery") {
-      player.battery = Utils.clamp(player.battery + 45, 0, 100);
-      if (!player.torchOn) player.torchOn = true;
-      Sound.sfx.pickup(); score += 60;
-      floaty(it.x, it.y, "+45% TORCH", "#00e5ff");
-      burst(it.x, it.y, "#00e5ff", 10);
     } else if (it.type === "medkit") {
       player.health = Utils.clamp(player.health + 35, 0, player.maxHealth);
       Sound.sfx.pickup(); score += 80;
@@ -413,19 +408,39 @@ const Game = (() => {
     shake = 14;
     Sound.sfx.dead();
     Sound.stopAmbient();
-    UI.showGameOver(level, Math.floor(score), Math.floor(elapsed));
+    UI.showGameOver(level, Math.floor(score), Math.floor(elapsed), !reviveUsed);
+  }
+
+  // Rewarded-ad revive: pick the worker back up mid-floor with partial health,
+  // clear the immediate area, and a moment of invulnerability. One per floor.
+  function revive() {
+    if (state !== "dead" || reviveUsed) return false;
+    reviveUsed = true;
+    player.health = 60;
+    player.invuln = 2;
+    // shove nearby enemies off so you don't instantly die again
+    for (const e of enemies) {
+      if (Utils.dist(player.x, player.y, e.x, e.y) < 170) {
+        const a = Math.atan2(e.y - player.y, e.x - player.x);
+        e.kx += Math.cos(a) * 320; e.ky += Math.sin(a) * 320; e.stun = 2;
+      }
+    }
+    state = "playing";
+    Sound.sfx.rescue();
+    Sound.startAmbient();
+    return true;
   }
 
   function winLevel() {
     state = "win";
     // ---- Tiered (1-3 star) victory rating ----
     //   ★    Escaped alive
-    //   ★★   Escaped with > 50% torch battery
+    //   ★★   Escaped with > 50% health
     //   ★★★  Escaped in under 90 seconds (speedrun)
-    const torchPct = Math.round(player.battery);
+    const hpPct = Math.round(player.health);
     const secs = elapsed;
     let stars = 1;
-    if (torchPct > 50) stars++;
+    if (hpPct > 50) stars++;
     if (secs < 90) stars++;
     score += 1000 + Math.max(0, Math.floor(timeLeft) * 10) + player.health * 5 + stars * 500;
 
@@ -440,7 +455,7 @@ const Game = (() => {
     Sound.sfx.win();
     Sound.stopAmbient();
     UI.showWin(level, Math.floor(score), secs, stars, best, {
-      torchOk: torchPct > 50, torch: torchPct,
+      hpOk: hpPct > 50, hp: hpPct,
       timeOk: secs < 90, time: secs.toFixed(1),
       rescued, animals: map.animals.length,
     });
@@ -719,82 +734,63 @@ const Game = (() => {
     ctx.globalAlpha = 1;
   }
 
-  // Darkness + torch cone via a separate light buffer punched out of black.
+  // Lighting model: the lab is dark and lit ONLY by the facility's own
+  // (flickering) ceiling lights, plus a small glow the player carries by
+  // proximity. No flashlight. A separate buffer is punched out of black.
   function drawLighting(ox, oy) {
     lightCtx.clearRect(0, 0, W, H);
-    lightCtx.fillStyle = "rgba(2,4,8,0.93)";
+    lightCtx.fillStyle = "rgba(2,4,8,0.9)";
     lightCtx.fillRect(0, 0, W, H);
 
     lightCtx.globalCompositeOperation = "destination-out";
     const px = player.x - cam.x + ox, py = player.y - cam.y + oy;
 
-    // soft ambient glow around player
-    let g = lightCtx.createRadialGradient(px, py, 8, px, py, 95);
+    // Soft personal glow so you can always see your immediate surroundings.
+    let g = lightCtx.createRadialGradient(px, py, 14, px, py, 150);
     g.addColorStop(0, "rgba(0,0,0,1)");
+    g.addColorStop(0.55, "rgba(0,0,0,0.7)");
     g.addColorStop(1, "rgba(0,0,0,0)");
     lightCtx.fillStyle = g;
-    lightCtx.beginPath(); lightCtx.arc(px, py, 95, 0, 7); lightCtx.fill();
+    lightCtx.beginPath(); lightCtx.arc(px, py, 150, 0, 7); lightCtx.fill();
 
-    // Flickering ceiling-light pools — reveal stuttering patches of the room
-    // (and cast enemies into tense silhouette when a bulb dies).
+    // Flickering ceiling-light pools — now the PRIMARY light. Broken bulbs
+    // stutter and die, throwing enemies into tense silhouette.
     for (const lt of map.lights) {
       const lx = lt.x - cam.x + ox, ly = lt.y - cam.y + oy;
-      if (lx < -120 || lx > W + 120 || ly < -120 || ly > H + 120) continue;
+      if (lx < -180 || lx > W + 180 || ly < -180 || ly > H + 180) continue;
       const f = lightFlicker(lt);
-      if (f < 0.12) continue;
-      const rad = 110 * f;
-      const lg2 = lightCtx.createRadialGradient(lx, ly, 6, lx, ly, rad);
-      lg2.addColorStop(0, `rgba(0,0,0,${0.9 * f})`);
+      if (f < 0.1) continue;
+      const rad = 165 * f;
+      const lg2 = lightCtx.createRadialGradient(lx, ly, 8, lx, ly, rad);
+      lg2.addColorStop(0, `rgba(0,0,0,${0.96 * f})`);
+      lg2.addColorStop(0.7, `rgba(0,0,0,${0.6 * f})`);
       lg2.addColorStop(1, "rgba(0,0,0,0)");
       lightCtx.fillStyle = lg2;
       lightCtx.beginPath(); lightCtx.arc(lx, ly, rad, 0, 7); lightCtx.fill();
     }
 
-    // torch cone — with a "near-miss" flicker once the battery drops under 20%.
-    // The dying light creates urgency and makes a narrow escape feel earned.
-    if (player.torchOn) {
-      let flicker = 1;
-      if (player.battery < 20) {
-        const t = performance.now();
-        const wave = Math.sin(t * 0.05) * Math.sin(t * 0.013);
-        flicker = 0.5 + 0.5 * Math.max(0, wave);
-        if (Math.random() < 0.10) flicker *= 0.3;     // brief dropouts
-        flicker = Utils.clamp(flicker, 0.12, 1);
-      }
-      const reach = 320 * (0.6 + 0.4 * flicker), half = 0.55;
-      const a = player.facing;
-      const cg = lightCtx.createRadialGradient(px, py, 20, px, py, reach);
-      cg.addColorStop(0, `rgba(0,0,0,${flicker})`);
-      cg.addColorStop(0.7, `rgba(0,0,0,${0.85 * flicker})`);
-      cg.addColorStop(1, "rgba(0,0,0,0)");
-      lightCtx.fillStyle = cg;
-      lightCtx.beginPath();
-      lightCtx.moveTo(px, py);
-      lightCtx.arc(px, py, reach, a - half, a + half);
-      lightCtx.closePath(); lightCtx.fill();
-    }
     lightCtx.globalCompositeOperation = "source-over";
-
-    // toxic color tint on the lit areas
     ctx.drawImage(lightCanvas, 0, 0);
 
-    // torch warm tint
-    if (player.torchOn) {
-      ctx.save();
-      ctx.globalCompositeOperation = "overlay";
-      const a = player.facing;
-      const tg = ctx.createRadialGradient(px, py, 20, px, py, 300);
-      tg.addColorStop(0, "rgba(124,255,0,0.12)");
-      tg.addColorStop(1, "rgba(124,255,0,0)");
+    // Cold fluorescent tint inside the lit pools for mood.
+    ctx.save();
+    ctx.globalCompositeOperation = "overlay";
+    for (const lt of map.lights) {
+      const lx = lt.x - cam.x + ox, ly = lt.y - cam.y + oy;
+      if (lx < -180 || lx > W + 180 || ly < -180 || ly > H + 180) continue;
+      const f = lightFlicker(lt);
+      if (f < 0.1) continue;
+      const tg = ctx.createRadialGradient(lx, ly, 8, lx, ly, 165 * f);
+      tg.addColorStop(0, `rgba(150,200,255,${0.10 * f})`);
+      tg.addColorStop(1, "rgba(150,200,255,0)");
       ctx.fillStyle = tg;
-      ctx.beginPath(); ctx.moveTo(px, py);
-      ctx.arc(px, py, 300, a - 0.55, a + 0.55); ctx.closePath(); ctx.fill();
-      ctx.restore();
+      ctx.beginPath(); ctx.arc(lx, ly, 165 * f, 0, 7); ctx.fill();
     }
+    ctx.restore();
   }
 
   return {
-    boot, start, update, render,
+    boot, start, update, render, revive,
     get state() { return state; },
     setState: (s) => { state = s; },
     get level() { return level; },

@@ -17,11 +17,10 @@ class Player {
   constructor(x, y) {
     this.x = x; this.y = y;
     this.r = 14;
-    this.speed = 165;
+    this.speed = 168;
     this.health = 100;
     this.maxHealth = 100;
-    this.battery = 100;
-    this.torchOn = true;
+    this.stamina = 100;       // sprint fuel (replaces the old torch battery)
     this.facing = 0;        // radians
     this.keys = 0;
     this.hurtFlash = 0;
@@ -45,9 +44,9 @@ class Player {
     let { x: mx, y: my } = Input.move;
     const moving = mx !== 0 || my !== 0;
     this.moving = moving;
-    const sprint = Input.sprint && this.battery > 0;
-    this.sprinting = sprint && moving;   // mutants let you dash past while true
-    const spd = this.speed * (sprint ? 1.6 : 1);
+    const sprint = Input.sprint && this.stamina > 0 && moving;
+    this.sprinting = sprint;              // mutants let you dash past while true
+    const spd = this.speed * (sprint ? 1.7 : 1);
 
     if (moving) this.facing = Math.atan2(my, mx);
 
@@ -74,16 +73,9 @@ class Player {
     }
     this.moving = speedNow > 12;
 
-    // Torch drains battery; sprint drains faster.
-    if (this.torchOn) this.battery -= dt * 1.6;
-    if (sprint && moving) this.battery -= dt * 4;
-    this.battery = Utils.clamp(this.battery, 0, 100);
-    if (this.battery <= 0) this.torchOn = false;
-
-    if (Input.torchToggled && this.battery > 0) {
-      this.torchOn = !this.torchOn;
-      Sound.sfx.zap();
-    }
+    // Sprint burns stamina; it recovers when you ease off.
+    if (sprint) this.stamina = Utils.clamp(this.stamina - dt * 32, 0, 100);
+    else this.stamina = Utils.clamp(this.stamina + dt * 22, 0, 100);
 
     // --- Combat: melee swing on a cooldown. Game controller resolves the hit. ---
     if (this.attackCd > 0) this.attackCd -= dt;
@@ -134,16 +126,16 @@ class Player {
     rr(ctx, -r * 0.95 + stride * 3, -r * 0.6, r * 0.7, r * 0.42, 3);
     rr(ctx, -r * 0.95 - stride * 3,  r * 0.18, r * 0.7, r * 0.42, 3);
 
-    // backpack / battery unit at rear
+    // backpack unit at rear (glows green while sprinting/recovered)
     ctx.fillStyle = "#363b46";
     rr(ctx, -r * 0.85, -r * 0.5, r * 0.55, r * 1.0, 4);
-    ctx.fillStyle = this.torchOn ? "#00e5ff" : "#0a3a44";
+    ctx.fillStyle = this.sprinting ? "#b78bff" : "#2a6a55";
     rr(ctx, -r * 0.68, -r * 0.18, r * 0.16, r * 0.36, 2);
 
     // arms
     ctx.fillStyle = hurt ? "#ff5566" : "#e9b800";
     rr(ctx, r * 0.05, -r * 1.0, r * 0.55, r * 0.3, 3);  // off hand to the side
-    rr(ctx, r * 0.15,  r * 0.55, r * 0.8, r * 0.3, 3);  // forward hand (torch)
+    rr(ctx, r * 0.15,  r * 0.55, r * 0.8, r * 0.3, 3);  // weapon hand
 
     // torso (hazmat suit)
     ctx.fillStyle = hurt ? "#ff5566" : "#ffd23f";
@@ -162,11 +154,11 @@ class Player {
     ctx.fillStyle = "#7CFF00";
     ctx.beginPath(); ctx.arc(r * 0.6, 0, r * 0.12, 0, 7); ctx.fill();
 
-    // flashlight in the forward hand
+    // stun baton in the forward hand
     ctx.fillStyle = "#2b2f3a";
-    rr(ctx, r * 0.95, r * 0.5, r * 0.5, r * 0.28, 2);
-    ctx.fillStyle = this.torchOn ? "#fff7c0" : "#555";
-    rr(ctx, r * 1.4, r * 0.55, r * 0.12, r * 0.2, 1);
+    rr(ctx, r * 0.95, r * 0.5, r * 0.5, r * 0.24, 2);
+    ctx.fillStyle = "#36d1ff";
+    rr(ctx, r * 1.36, r * 0.54, r * 0.14, r * 0.16, 1);
 
     // melee swing — a bright crescent sweeping across the front
     if (this.swing > 0) {
@@ -199,6 +191,9 @@ class Dog {
     this.sniffCd = 0;
     this.bark = 0;          // bark animation/alert timer
     this.sniffTarget = null;
+    // Cosmetic skin (from the shop). Falls back to the default breed.
+    this.skin = (typeof Commerce !== "undefined") ? Commerce.activeSkin()
+              : { body: "#c79b6b", accent: "#8a6238" };
   }
 
   update(dt, map, player, enemies, onBark, onSniff) {
@@ -250,18 +245,22 @@ class Dog {
     ctx.beginPath(); ctx.ellipse(0, this.r * 0.7, this.r * 0.9, this.r * 0.35, 0, 0, 7); ctx.fill();
     ctx.rotate(this.facing);
     const wob = Math.sin(this.phase) * 1.5;
+    const body = this.skin.body, accent = this.skin.accent;
     // body
-    ctx.fillStyle = "#c79b6b";
+    ctx.fillStyle = body;
     ctx.beginPath(); ctx.ellipse(0, 0, this.r, this.r * 0.7, 0, 0, 7); ctx.fill();
+    // collar (skin accent)
+    ctx.strokeStyle = accent; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(this.r * 0.35, 0, this.r * 0.55, -1, 1); ctx.stroke();
     // tail (wags)
-    ctx.strokeStyle = "#a87f50"; ctx.lineWidth = 3; ctx.lineCap = "round";
+    ctx.strokeStyle = accent; ctx.lineWidth = 3; ctx.lineCap = "round";
     ctx.beginPath(); ctx.moveTo(-this.r * 0.8, 0);
     ctx.lineTo(-this.r * 1.4, Math.sin(this.phase * 2) * 5); ctx.stroke();
     // head forward
-    ctx.fillStyle = "#d8ad7a";
+    ctx.fillStyle = body;
     ctx.beginPath(); ctx.arc(this.r * 0.7, wob, this.r * 0.6, 0, 7); ctx.fill();
     // ear + snout + eye
-    ctx.fillStyle = "#8a6238";
+    ctx.fillStyle = accent;
     ctx.beginPath(); ctx.ellipse(this.r * 0.5, wob - this.r * 0.4, 3, 5, 0, 0, 7); ctx.fill();
     ctx.fillStyle = "#3a2a16";
     ctx.beginPath(); ctx.arc(this.r * 1.15, wob, 2.4, 0, 7); ctx.fill();
@@ -293,22 +292,22 @@ class Enemy {
     const boost = 1 + level * 0.06;
     const hpBoost = 1 + level * 0.12;
     if (type === "zombie") {
-      // Slow, predictable shambler — but HIGH damage if it reaches you.
-      this.r = 15; this.speed = 50 * boost; this.dmg = 34; this.color = "#5fbf3f";
-      this.senseR = 250; this.maxHp = 62 * hpBoost;
+      // Slow, predictable shambler — solid damage if it reaches you.
+      this.r = 15; this.speed = 50 * boost; this.dmg = 26; this.color = "#5fbf3f";
+      this.senseR = 240; this.maxHp = 58 * hpBoost;
     } else if (type === "mutant") {
       // Stationary corridor hazard. Tanky; dash past or chip it down.
-      this.r = 21; this.speed = 0; this.dmg = 46; this.color = "#c026d3";
-      this.senseR = 0; this.maxHp = 170 * hpBoost;
+      this.r = 21; this.speed = 0; this.dmg = 42; this.color = "#c026d3";
+      this.senseR = 0; this.maxHp = 160 * hpBoost;
     } else if (type === "nemesis") {
       // Patient Zero — relentless boss that paths around corners.
-      this.r = 20; this.speed = 100 * boost; this.dmg = 42; this.color = "#ff1f3d";
-      this.senseR = 480; this.alerted = true; this.name = "PATIENT ZERO";
-      this.maxHp = 380 * hpBoost;
+      this.r = 20; this.speed = 98 * boost; this.dmg = 32; this.color = "#ff1f3d";
+      this.senseR = 460; this.alerted = true; this.name = "PATIENT ZERO";
+      this.maxHp = 360 * hpBoost;
     } else { // insect swarm unit
       // Very fast, low damage, follows your scent around corners.
-      this.r = 9; this.speed = 138 * boost; this.dmg = 7; this.color = "#ff7a00";
-      this.senseR = 250; this.maxHp = 12 * hpBoost;
+      this.r = 9; this.speed = 134 * boost; this.dmg = 6; this.color = "#ff7a00";
+      this.senseR = 240; this.maxHp = 12 * hpBoost;
     }
     this.hp = this.maxHp;
   }

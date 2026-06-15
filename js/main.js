@@ -5,8 +5,8 @@ const UI = (() => {
   const el = (id) => document.getElementById(id);
   const hud = el("hud"), touch = el("touch");
   const menu = el("menu"), gameover = el("gameover"), win = el("win");
-  const healthFill = el("healthFill"), batteryFill = el("batteryFill");
-  const batteryStat = batteryFill.closest(".stat");
+  const healthFill = el("healthFill"), staminaFill = el("staminaFill");
+  const staminaStat = staminaFill.closest(".stat");
   const keyCount = el("keyCount"), hudMsg = el("hudMsg");
   const transmissionEl = el("transmission"), transmissionTxt = el("transmissionText");
   const nemesisEl = el("nemesis");
@@ -21,10 +21,10 @@ const UI = (() => {
   }
   function updateHUD(p) {
     healthFill.style.width = Math.max(0, p.health) + "%";
-    batteryFill.style.width = Math.max(0, p.battery) + "%";
+    staminaFill.style.width = Math.max(0, p.stamina) + "%";
     keyCount.textContent = `${p.keys} / 3`;
-    // Low-battery HUD state pulses the torch bar in sync with the flicker.
-    batteryStat.classList.toggle("low", p.torchOn && p.battery < 20);
+    // Low-stamina state pulses the bar when you're nearly out of sprint.
+    staminaStat.classList.toggle("low", p.stamina < 20);
   }
   function flash(text) { hudMsg.textContent = text; hudMsg.classList.add("show"); }
   function clearFlash() { hudMsg.classList.remove("show"); }
@@ -55,15 +55,18 @@ const UI = (() => {
     if (m) m.textContent = `${count} / ${Lore.total}`;
   }
 
-  function showGameOver(level, score, time) {
+  function showGameOver(level, score, time, canRevive) {
     hud.classList.add("hidden"); touch.classList.add("hidden");
     el("goStats").innerHTML =
       `You reached <b>Level ${level}</b> and survived <b>${time}s</b>.<br>Score: <b>${score}</b>`;
+    el("btnRevive").style.display = canRevive ? "block" : "none";
     gameover.classList.remove("hidden");
   }
 
+  let lastWin = null;          // data for the shareable rescue certificate
   function showWin(level, score, time, stars, best, detail) {
     hud.classList.add("hidden"); touch.classList.add("hidden");
+    lastWin = { level, score, stars, rescued: detail.rescued || 0, animals: detail.animals || 0 };
     // Light up the earned stars with a staggered pop animation.
     const starEls = win.querySelectorAll(".star");
     starEls.forEach((s, i) => {
@@ -75,8 +78,8 @@ const UI = (() => {
           `🐾 Animals rescued <span>(${detail.rescued}/${detail.animals})</span></div>`
       : "";
     el("winStats").innerHTML =
-      `<div class="rate ${detail.torchOk ? "ok" : "no"}">` +
-        `${detail.torchOk ? "★" : "☆"} Torch &gt; 50% <span>(${detail.torch}%)</span></div>` +
+      `<div class="rate ${detail.hpOk ? "ok" : "no"}">` +
+        `${detail.hpOk ? "★" : "☆"} Health &gt; 50% <span>(${detail.hp}%)</span></div>` +
       `<div class="rate ${detail.timeOk ? "ok" : "no"}">` +
         `${detail.timeOk ? "★" : "☆"} Under 90s <span>(${detail.time}s)</span></div>` +
       rescuedLine +
@@ -86,7 +89,7 @@ const UI = (() => {
   }
 
   return { showGame, updateHUD, flash, clearFlash, transmission, nemesis,
-           updateLore, showGameOver, showWin };
+           updateLore, showGameOver, showWin, getLastWin: () => lastWin };
 })();
 
 window.addEventListener("load", () => {
@@ -109,6 +112,47 @@ window.addEventListener("load", () => {
     document.getElementById("menu").classList.remove("hidden");
     Game.setState("menu");
   });
+
+  // ---- Rewarded-ad revive ----
+  document.getElementById("btnRevive").addEventListener("click", () => {
+    Commerce.showRewardedAd((ok) => {
+      if (ok && Game.revive()) {
+        document.getElementById("gameover").classList.add("hidden");
+        UI.showGame();
+      }
+    });
+  });
+
+  // ---- Social share (rescue certificate) ----
+  document.getElementById("btnShare").addEventListener("click", () => {
+    const w = UI.getLastWin();
+    if (w) Commerce.shareCertificate(w);
+  });
+
+  // ---- Dog skin shop ----
+  const shop = document.getElementById("shop");
+  const shopList = document.getElementById("shopList");
+  function renderShop() {
+    shopList.innerHTML = "";
+    for (const skin of Commerce.SKINS) {
+      const owned = Commerce.owns(skin.id);
+      const active = Commerce.selectedId() === skin.id && owned;
+      const row = document.createElement("div");
+      row.className = "shop-row" + (active ? " active" : "");
+      row.innerHTML =
+        `<span class="swatch" style="background:${skin.body};box-shadow:0 0 8px ${skin.accent}"></span>` +
+        `<span class="shop-name">${skin.name}${skin.premium ? " ⭐" : ""}</span>` +
+        `<span class="shop-act">${active ? "EQUIPPED" : owned ? "EQUIP" : "$2.99"}</span>`;
+      row.addEventListener("click", () => {
+        if (active) return;
+        if (owned) { Commerce.select(skin.id); renderShop(); }
+        else Commerce.buySkin(skin.id, (done) => { if (done) { Commerce.select(skin.id); renderShop(); } });
+      });
+      shopList.appendChild(row);
+    }
+  }
+  document.getElementById("btnShop").addEventListener("click", () => { renderShop(); shop.classList.remove("hidden"); });
+  document.getElementById("btnShopClose").addEventListener("click", () => shop.classList.add("hidden"));
 
   // Game loop
   let last = performance.now();
