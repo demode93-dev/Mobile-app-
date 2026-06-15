@@ -67,7 +67,10 @@ const Sound = (() => {
     growl:    () => { tone(90, 0.5, "sawtooth", 0.22, 60); },
     alarm:    () => { tone(880, 0.18, "square", 0.12, 660); },
     step:     () => { noise(0.04, 0.05, 1200); },
-    drip:     () => { tone(1500, 0.06, "sine", 0.10, 600); tone(700, 0.10, "sine", 0.06, 300); },
+    // a real "plip": a quick downward pitch drop + a tiny surface ping
+    drip:     () => { tone(1900, 0.20, "sine", 0.16, 170); tone(2600, 0.04, "sine", 0.06, 1400); },
+    // short electrical crackle when a fluorescent tube stutters
+    lightbuzz:() => { tone(118, 0.14, "sawtooth", 0.09, 96); noise(0.05, 0.05, 3200); },
     bark:     () => { tone(420, 0.07, "square", 0.22, 260); tone(300, 0.09, "square", 0.16, 180); },
     rescue:   () => { [523,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,0.16,"triangle",0.26),i*90)); },
     sprinkler:() => { noise(0.3, 0.05, 2200); },
@@ -76,11 +79,13 @@ const Sound = (() => {
     kill:     () => { noise(0.18, 0.26, 360); tone(160, 0.22, "sawtooth", 0.28, 50); },
   };
 
-  // Low looping ambient hum + heartbeat that quickens with danger.
-  let humOsc = null, humGain = null, heartTimer = null, heartRate = 1100;
+  // Low looping ambient hum + a fluorescent light buzz + danger heartbeat.
+  let humOsc = null, humGain = null, buzzOsc = null, buzzGain = null;
+  let heartTimer = null, heartRate = 1100;
   function startAmbient() {
     if (!ctx || ambientOn) return;
     ambientOn = true;
+    // sub-bass dread drone
     humOsc = ctx.createOscillator();
     humGain = ctx.createGain();
     humOsc.type = "sawtooth";
@@ -90,6 +95,18 @@ const Sound = (() => {
     lp.type = "lowpass"; lp.frequency.value = 120;
     humOsc.connect(lp).connect(humGain).connect(master);
     humOsc.start();
+
+    // fluorescent-tube buzz: a mains-frequency hum with harmonics
+    buzzOsc = ctx.createOscillator();
+    buzzGain = ctx.createGain();
+    buzzOsc.type = "square";
+    buzzOsc.frequency.value = 120;
+    buzzGain.gain.value = 0.016;
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass"; bp.frequency.value = 130; bp.Q.value = 5;
+    buzzOsc.connect(bp).connect(buzzGain).connect(master);
+    buzzOsc.start();
+
     scheduleHeart();
   }
   function scheduleHeart() {
@@ -106,6 +123,7 @@ const Sound = (() => {
     ambientOn = false;
     if (heartTimer) clearTimeout(heartTimer);
     if (humOsc) { try { humOsc.stop(); } catch (e) {} humOsc = null; }
+    if (buzzOsc) { try { buzzOsc.stop(); } catch (e) {} buzzOsc = null; }
   }
 
   function toggleMute() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.5; return muted; }

@@ -13,6 +13,7 @@ const Game = (() => {
   let nemesisSpawned = false;   // Patient Zero tease — fires once per level
   let dripTimer = 0;            // ambient water-drip cadence
   let sprinklerTimer = 0;       // sprinkler hiss cadence while in the wet zone
+  let buzzTimer = 0;            // fluorescent-light crackle cadence
 
   function boot(c) {
     canvas = c;
@@ -68,6 +69,7 @@ const Game = (() => {
     nemesisSpawned = false;
     dripTimer = Utils.rand(1, 3);
     sprinklerTimer = 0;
+    buzzTimer = Utils.rand(1.5, 3);
     elapsed = 0;
     timeLeft = Math.max(90, 150 - level * 8); // soft pressure: alarm countdown
 
@@ -295,6 +297,16 @@ const Game = (() => {
       if (d.y >= d.groundY) {
         burst(d.x, d.groundY, "#9fd6ff", d.sprinkler ? 3 : 5);
         drips.splice(i, 1);
+      }
+    }
+
+    // Electrical crackle from a stuttering ceiling light near the player.
+    buzzTimer -= dt;
+    if (buzzTimer <= 0) {
+      buzzTimer = Utils.rand(1.6, 4);
+      for (const lt of map.lights) {
+        if (!lt.broken) continue;
+        if (Utils.dist(lt.x, lt.y, player.x, player.y) < 320) { Sound.sfx.lightbuzz(); break; }
       }
     }
   }
@@ -602,12 +614,13 @@ const Game = (() => {
   function lightFlicker(lt) {
     const t = performance.now() / 1000;
     if (lt.broken) {
+      // stutters, but floors at ~0.5 so the area stays readable
       const f = Math.sin(t * 13 + lt.phase) * Math.sin(t * 7.3 + lt.phase * 2);
-      let v = 0.35 + 0.65 * Math.max(0, f);
-      if (Math.random() < 0.06) v *= 0.15;       // random blackout blink
+      let v = 0.55 + 0.45 * Math.max(0, f);
+      if (Math.random() < 0.03) v *= 0.4;        // brief dip, not a blackout
       return v;
     }
-    return 0.8 + 0.2 * Math.sin(t * 2 + lt.phase);
+    return 0.88 + 0.12 * Math.sin(t * 2 + lt.phase);
   }
 
   function drawItems() {
@@ -739,31 +752,31 @@ const Game = (() => {
   // proximity. No flashlight. A separate buffer is punched out of black.
   function drawLighting(ox, oy) {
     lightCtx.clearRect(0, 0, W, H);
-    lightCtx.fillStyle = "rgba(2,4,8,0.9)";
+    lightCtx.fillStyle = "rgba(3,5,9,0.8)";
     lightCtx.fillRect(0, 0, W, H);
 
     lightCtx.globalCompositeOperation = "destination-out";
     const px = player.x - cam.x + ox, py = player.y - cam.y + oy;
 
     // Soft personal glow so you can always see your immediate surroundings.
-    let g = lightCtx.createRadialGradient(px, py, 14, px, py, 150);
+    let g = lightCtx.createRadialGradient(px, py, 18, px, py, 205);
     g.addColorStop(0, "rgba(0,0,0,1)");
-    g.addColorStop(0.55, "rgba(0,0,0,0.7)");
+    g.addColorStop(0.5, "rgba(0,0,0,0.88)");
     g.addColorStop(1, "rgba(0,0,0,0)");
     lightCtx.fillStyle = g;
-    lightCtx.beginPath(); lightCtx.arc(px, py, 150, 0, 7); lightCtx.fill();
+    lightCtx.beginPath(); lightCtx.arc(px, py, 205, 0, 7); lightCtx.fill();
 
-    // Flickering ceiling-light pools — now the PRIMARY light. Broken bulbs
-    // stutter and die, throwing enemies into tense silhouette.
+    // Flickering ceiling-light pools — the PRIMARY light. Broken bulbs stutter
+    // but never go fully black, so the lab stays readable.
     for (const lt of map.lights) {
       const lx = lt.x - cam.x + ox, ly = lt.y - cam.y + oy;
-      if (lx < -180 || lx > W + 180 || ly < -180 || ly > H + 180) continue;
+      if (lx < -240 || lx > W + 240 || ly < -240 || ly > H + 240) continue;
       const f = lightFlicker(lt);
-      if (f < 0.1) continue;
-      const rad = 165 * f;
-      const lg2 = lightCtx.createRadialGradient(lx, ly, 8, lx, ly, rad);
-      lg2.addColorStop(0, `rgba(0,0,0,${0.96 * f})`);
-      lg2.addColorStop(0.7, `rgba(0,0,0,${0.6 * f})`);
+      if (f < 0.08) continue;
+      const rad = 215 * f;
+      const lg2 = lightCtx.createRadialGradient(lx, ly, 10, lx, ly, rad);
+      lg2.addColorStop(0, `rgba(0,0,0,${Math.min(1, 1.05 * f)})`);
+      lg2.addColorStop(0.65, `rgba(0,0,0,${0.75 * f})`);
       lg2.addColorStop(1, "rgba(0,0,0,0)");
       lightCtx.fillStyle = lg2;
       lightCtx.beginPath(); lightCtx.arc(lx, ly, rad, 0, 7); lightCtx.fill();
@@ -777,14 +790,14 @@ const Game = (() => {
     ctx.globalCompositeOperation = "overlay";
     for (const lt of map.lights) {
       const lx = lt.x - cam.x + ox, ly = lt.y - cam.y + oy;
-      if (lx < -180 || lx > W + 180 || ly < -180 || ly > H + 180) continue;
+      if (lx < -240 || lx > W + 240 || ly < -240 || ly > H + 240) continue;
       const f = lightFlicker(lt);
-      if (f < 0.1) continue;
-      const tg = ctx.createRadialGradient(lx, ly, 8, lx, ly, 165 * f);
-      tg.addColorStop(0, `rgba(150,200,255,${0.10 * f})`);
+      if (f < 0.08) continue;
+      const tg = ctx.createRadialGradient(lx, ly, 10, lx, ly, 215 * f);
+      tg.addColorStop(0, `rgba(150,200,255,${0.12 * f})`);
       tg.addColorStop(1, "rgba(150,200,255,0)");
       ctx.fillStyle = tg;
-      ctx.beginPath(); ctx.arc(lx, ly, 165 * f, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(lx, ly, 215 * f, 0, 7); ctx.fill();
     }
     ctx.restore();
   }
