@@ -18,8 +18,8 @@ class Player {
     this.x = x; this.y = y;
     this.r = 14;
     this.speed = 168;
-    this.health = 100;
-    this.maxHealth = 100;
+    this.health = 140;
+    this.maxHealth = 140;
     this.stamina = 100;       // sprint fuel (replaces the old torch battery)
     this.facing = 0;        // radians
     this.keys = 0;
@@ -154,11 +154,13 @@ class Player {
     ctx.fillStyle = "#7CFF00";
     ctx.beginPath(); ctx.arc(r * 0.6, 0, r * 0.12, 0, 7); ctx.fill();
 
-    // stun baton in the forward hand
-    ctx.fillStyle = "#2b2f3a";
-    rr(ctx, r * 0.95, r * 0.5, r * 0.5, r * 0.24, 2);
-    ctx.fillStyle = "#36d1ff";
-    rr(ctx, r * 1.36, r * 0.54, r * 0.14, r * 0.16, 1);
+    // fire axe in the forward hand
+    ctx.fillStyle = "#6b4326";                       // wooden handle
+    rr(ctx, r * 0.95, r * 0.52, r * 0.62, r * 0.15, 1);
+    ctx.fillStyle = "#c2c8d0";                       // steel head
+    rr(ctx, r * 1.46, r * 0.40, r * 0.2, r * 0.42, 2);
+    ctx.fillStyle = "#ff3b30";                       // red safety stripe
+    rr(ctx, r * 0.98, r * 0.52, r * 0.16, r * 0.15, 1);
 
     // melee swing — a bright crescent sweeping across the front
     if (this.swing > 0) {
@@ -293,20 +295,20 @@ class Enemy {
     const hpBoost = 1 + level * 0.12;
     if (type === "zombie") {
       // Slow, predictable shambler — solid damage if it reaches you.
-      this.r = 15; this.speed = 50 * boost; this.dmg = 26; this.color = "#5fbf3f";
+      this.r = 15; this.speed = 50 * boost; this.dmg = 18; this.color = "#5fbf3f";
       this.senseR = 240; this.maxHp = 58 * hpBoost;
     } else if (type === "mutant") {
       // Stationary corridor hazard. Tanky; dash past or chip it down.
-      this.r = 21; this.speed = 0; this.dmg = 42; this.color = "#c026d3";
+      this.r = 21; this.speed = 0; this.dmg = 30; this.color = "#c026d3";
       this.senseR = 0; this.maxHp = 160 * hpBoost;
     } else if (type === "nemesis") {
       // Patient Zero — relentless boss that paths around corners.
-      this.r = 20; this.speed = 98 * boost; this.dmg = 32; this.color = "#ff1f3d";
+      this.r = 20; this.speed = 98 * boost; this.dmg = 24; this.color = "#ff1f3d";
       this.senseR = 460; this.alerted = true; this.name = "PATIENT ZERO";
       this.maxHp = 360 * hpBoost;
     } else { // insect swarm unit
       // Very fast, low damage, follows your scent around corners.
-      this.r = 9; this.speed = 134 * boost; this.dmg = 6; this.color = "#ff7a00";
+      this.r = 9; this.speed = 134 * boost; this.dmg = 4; this.color = "#ff7a00";
       this.senseR = 240; this.maxHp = 12 * hpBoost;
     }
     this.hp = this.maxHp;
