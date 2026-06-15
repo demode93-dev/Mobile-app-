@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#05060a" />
+  <title>LAB ESCAPE — First Person</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden;
+      font-family: "Trebuchet MS", system-ui, sans-serif; color: #eaffea;
+      user-select: none; -webkit-user-select: none; touch-action: none; }
+    #view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; background: #05060a; }
+
+    /* Crosshair */
+    #cross { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%);
+      width: 18px; height: 18px; pointer-events: none; opacity: 0.7; z-index: 4; }
+    #cross::before, #cross::after { content: ""; position: absolute; background: #aef; box-shadow: 0 0 6px #36d1ff; }
+    #cross::before { left: 8px; top: 0; width: 2px; height: 18px; }
+    #cross::after { top: 8px; left: 0; height: 2px; width: 18px; }
+
+    /* HUD */
+    #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5;
+      padding: max(12px, env(safe-area-inset-top)) 16px; }
+    .hbar-wrap { width: 220px; }
+    .hlabel { font-size: 10px; letter-spacing: 2px; opacity: 0.75; font-weight: bold; }
+    .hbar { height: 14px; border-radius: 999px; background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12); overflow: hidden; margin-top: 3px; }
+    .hbar > span { display: block; height: 100%; width: 100%;
+      background: linear-gradient(90deg, #1f9d3a, #39ff14); box-shadow: 0 0 10px #39ff14; transition: width .12s; }
+    #staBar > span { background: linear-gradient(90deg, #00e5ff, #b78bff); box-shadow: 0 0 10px #00e5ff; }
+    #hudRight { position: fixed; top: max(12px, env(safe-area-inset-top)); right: 16px; text-align: right; z-index: 5; }
+    .chip { display:inline-block; background: rgba(8,12,20,0.7); border: 1px solid rgba(57,255,20,0.25);
+      border-radius: 10px; padding: 5px 10px; font-weight: bold; font-size: 14px; margin-left: 6px;
+      backdrop-filter: blur(6px); }
+    #msg { position: fixed; top: 30%; left: 50%; transform: translateX(-50%); z-index: 6;
+      font-weight: bold; letter-spacing: 1px; font-size: clamp(16px,5vw,26px); color:#fff;
+      text-shadow: 0 0 14px #ff2bd6; text-align: center; opacity: 0; transition: opacity .25s; padding: 0 16px; }
+    #msg.show { opacity: 1; }
+
+    /* Touch controls */
+    #touch { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+    .tbtn { position: fixed; bottom: max(30px, env(safe-area-inset-bottom)); pointer-events: auto;
+      border-radius: 50%; border: 2px solid rgba(0,229,255,0.45); color: #fff; font-size: 30px;
+      background: radial-gradient(circle, rgba(0,229,255,0.18), rgba(0,0,0,0.4)); backdrop-filter: blur(4px); }
+    #bAxe { right: 26px; width: 88px; height: 88px; font-size: 36px;
+      border-color: rgba(255,59,48,0.6); background: radial-gradient(circle, rgba(255,59,48,0.22), rgba(0,0,0,0.4)); }
+    #bSprint { right: 130px; width: 64px; height: 64px; font-size: 24px; border-color: rgba(183,139,255,0.5); }
+    #bAxe:active, #bSprint:active { transform: scale(0.92); }
+    .hint-zone { position: fixed; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 11px; opacity: 0.4; z-index: 5; }
+
+    /* Overlays */
+    .screen { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+      padding: 22px; background: radial-gradient(circle at 50% 35%, rgba(15,0,25,0.6), rgba(0,0,0,0.93)); }
+    .screen.hidden { display: none; }
+    .panel { width: min(440px, 92vw); text-align: center; padding: 30px 26px; border-radius: 16px;
+      background: rgba(8,12,20,0.85); border: 1px solid rgba(57,255,20,0.25);
+      box-shadow: 0 0 40px rgba(57,255,20,0.15); backdrop-filter: blur(8px); }
+    .panel h1 { font-size: clamp(30px,9vw,50px); letter-spacing: 3px; color: #7CFF00; text-shadow: 0 0 18px #7CFF00; }
+    .panel h1.dead { color: #ff1f3d; text-shadow: 0 0 18px #ff1f3d; }
+    .panel h1.win { color: #00e5ff; text-shadow: 0 0 18px #00e5ff; }
+    .panel p { margin: 16px 0; line-height: 1.6; opacity: 0.9; font-size: 14px; }
+    .panel b { color: #7CFF00; }
+    .btn { width: 100%; padding: 15px; font-size: 17px; font-weight: bold; letter-spacing: 1.5px;
+      border: none; border-radius: 12px; cursor: pointer; color: #001a00;
+      background: linear-gradient(180deg, #7CFF00, #2db300); box-shadow: 0 0 20px rgba(124,255,0,0.5); }
+    .small { font-size: 12px; opacity: 0.55; margin-top: 14px; }
+    .small a { color: #9affb0; }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+  <div id="cross"></div>
+
+  <div id="hud" class="hidden">
+    <div class="hbar-wrap"><div class="hlabel">VITALS</div><div class="hbar"><span id="hpBar"></span></div></div>
+    <div class="hbar-wrap" style="margin-top:8px"><div class="hlabel">STAMINA</div><div class="hbar" id="staBar"><span></span></div></div>
+  </div>
+  <div id="hudRight" class="hidden">
+    <span class="chip" id="floorChip">FLOOR 1</span>
+    <span class="chip" id="keyChip">🗝 0/3</span>
+  </div>
+  <div id="msg"></div>
+
+  <div id="touch" class="hidden">
+    <button id="bSprint" class="tbtn">⚡</button>
+    <button id="bAxe" class="tbtn">🪓</button>
+  </div>
+
+  <div id="menu" class="screen">
+    <div class="panel">
+      <h1>LAB ESCAPE</h1>
+      <p>— FIRST PERSON —</p>
+      <p>Gas leak. Lights failing. Specimens loose. Find <b>3 keycards</b>, reach the <b>exit</b>, descend.</p>
+      <button class="btn" id="bPlay">▶ ENTER THE LAB</button>
+      <p class="small">Desktop: <b>WASD</b> move · <b>mouse / ← →</b> look · <b>Space</b> axe · <b>Shift</b> sprint<br>
+        Mobile: left side = move · right side = look · 🪓 / ⚡ buttons</p>
+      <p class="small"><a href="../">← back to the top-down version</a></p>
+    </div>
+  </div>
+
+  <div id="over" class="screen hidden">
+    <div class="panel">
+      <h1 id="overTitle" class="dead">CONSUMED</h1>
+      <p id="overText"></p>
+      <button class="btn" id="bAgain">↻ TRY AGAIN</button>
+    </div>
+  </div>
+
+  <script src="../js/utils.js"></script>
+  <script src="../js/audio.js"></script>
+  <script src="fp.js"></script>
+</body>
+</html>
