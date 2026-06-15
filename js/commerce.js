@@ -44,23 +44,94 @@ const Commerce = (() => {
     return SKINS.find((k) => k.id === selectedId() && owns(k.id)) || SKINS[0];
   }
 
-  // ---- Payments: Lemon Squeezy checkout (PLACEHOLDER) ----
-  // TODO real integration:
-  //   1) <script src="https://app.lemonsqueezy.com/js/lemon.js" defer></script>
-  //   2) window.LemonSqueezy.Url.Open('https://STORE.lemonsqueezy.com/checkout/buy/VARIANT_ID')
-  //   3) confirm purchase server-side (Netlify function + LS webhook) -> grant(id)
+  // ---- Payments: Lemon Squeezy hosted/overlay checkout ----
+  // Uses lemon.js when CONFIG.lemonSqueezy.enabled and a checkout URL exists;
+  // otherwise simulates the purchase so the game stays playable offline.
+  let _lemonReady = false, _pendingGrant = null;
+
+  function ensureLemon(cb) {
+    if (window.LemonSqueezy) { cb(); return; }
+    const s = document.createElement("script");
+    s.src = "https://app.lemonsqueezy.com/js/lemon.js";
+    s.defer = true;
+    s.onload = () => {
+      try { window.createLemonSqueezy && window.createLemonSqueezy(); } catch (e) {}
+      try {
+        window.LemonSqueezy && window.LemonSqueezy.Setup({
+          eventHandler: (ev) => {
+            // Granted client-side on success (see CONFIG note re: server verify).
+            if (ev && /Checkout\.Success/i.test(ev.event || "") && _pendingGrant) {
+              const g = _pendingGrant; _pendingGrant = null; g();
+            }
+          },
+        });
+      } catch (e) {}
+      _lemonReady = true; cb();
+    };
+    s.onerror = () => cb(false);
+    document.head.appendChild(s);
+  }
+
   function buySkin(id, onDone) {
+    const ls = CONFIG.lemonSqueezy;
+    const url = ls && ls.enabled && ls.skinCheckoutUrls && ls.skinCheckoutUrls[id];
+    if (url) {
+      _pendingGrant = () => { grant(id); onDone && onDone(true); };
+      ensureLemon((ok) => {
+        if (ok === false || !window.LemonSqueezy) { _pendingGrant = null; onDone && onDone(false); return; }
+        const sep = url.includes("?") ? "&" : "?";
+        window.LemonSqueezy.Url.Open(url + sep + "embed=1");
+      });
+      return;
+    }
+    // Fallback: simulated purchase.
     console.warn("[Commerce] Lemon Squeezy not configured — simulating skin purchase:", id);
     grant(id);
     if (onDone) onDone(true);
   }
 
-  // ---- Ads: rewarded video for revive (PLACEHOLDER) ----
-  // TODO: integrate a rewarded-ad SDK (AdMob / Unity Ads / AppLovin via a
-  // wrapper, or an H5 ad network). Call onReward(true) ONLY on completion.
+  // ---- Ads: Google H5 Games Ads rewarded video ----
+  let _adsReady = false;
+  function ensureAds(cb) {
+    const a = CONFIG.ads;
+    if (!a || !a.enabled || !a.adsensePublisherId) { cb(false); return; }
+    if (_adsReady) { cb(true); return; }
+    const s = document.createElement("script");
+    s.async = true; s.crossOrigin = "anonymous";
+    s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=" + a.adsensePublisherId;
+    s.onload = () => {
+      window.adsbygoogle = window.adsbygoogle || [];
+      window.adConfig = window.adConfig || function (c) { (adsbygoogle = window.adsbygoogle || []).push(c); };
+      window.adBreak = window.adBreak || function (o) { (adsbygoogle = window.adsbygoogle || []).push(o); };
+      try { window.adConfig({ preloadAdBreaks: "on" }); } catch (e) {}
+      _adsReady = true; cb(true);
+    };
+    s.onerror = () => cb(false);
+    document.head.appendChild(s);
+  }
+
+  // Show a rewarded ad. `onReward(true)` ONLY on full view; false if skipped /
+  // unavailable. Falls back to a simulated reward when ads aren't configured.
   function showRewardedAd(onReward) {
-    console.warn("[Commerce] Ad network not configured — simulating rewarded ad.");
-    if (onReward) onReward(true);
+    ensureAds((ready) => {
+      if (!ready) {
+        console.warn("[Commerce] Ad network not configured — simulating rewarded ad.");
+        if (onReward) onReward(true);
+        return;
+      }
+      let rewarded = false, done = false;
+      const finish = () => { if (done) return; done = true; if (onReward) onReward(rewarded); };
+      try {
+        window.adBreak({
+          type: "reward",
+          name: "revive",
+          beforeReward: (showAdFn) => showAdFn(),
+          adViewed: () => { rewarded = true; },
+          adDismissed: finish,
+          adBreakDone: finish,
+        });
+      } catch (e) { finish(); }
+    });
   }
 
   // ---- Social: shareable "rescue certificate" image ----
