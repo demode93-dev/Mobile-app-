@@ -77,6 +77,12 @@ const Sound = (() => {
     swing:    () => { noise(0.10, 0.16, 1700); tone(320, 0.07, "square", 0.10, 140); },
     splat:    () => { noise(0.10, 0.22, 520); tone(140, 0.10, "sawtooth", 0.18, 60); },
     kill:     () => { noise(0.18, 0.26, 360); tone(160, 0.22, "sawtooth", 0.28, 50); },
+    // creature vocalisations (distinct per type)
+    zombie:   () => { tone(82, 0.55, "sawtooth", 0.20, 58); tone(120, 0.4, "sawtooth", 0.10, 70); },
+    insect:   () => { for (let i = 0; i < 5; i++) setTimeout(() => noise(0.025, 0.10, 4200), i * 55); },
+    monster:  () => { tone(48, 0.8, "sawtooth", 0.30, 38); noise(0.5, 0.12, 300); tone(90, 0.5, "square", 0.10, 60); },
+    axeHit:   () => { noise(0.12, 0.3, 300); tone(90, 0.16, "square", 0.22, 50); },
+    clank:    () => { tone(680, 0.12, "square", 0.06, 220); noise(0.08, 0.05, 2600); },
   };
 
   // Low looping ambient hum + a fluorescent light buzz + danger heartbeat.

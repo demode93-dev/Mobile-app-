@@ -1,14 +1,13 @@
 /* ============================================================
    LAB ESCAPE — First-Person (raycaster, no libraries).
-   Lodev-style DDA walls + billboard sprites. Lit only by the lab's
-   own flickering ceiling lamps (no flashlight) + a faint carry glow.
+   Textured DDA walls + drawn billboard creatures/props, ceiling-lamp
+   lighting w/ flicker, head-bob, weapon viewmodel, layered audio.
    ============================================================ */
 (() => {
   "use strict";
 
   const canvas = document.getElementById("view");
   const ctx = canvas.getContext("2d");
-  // Low-res render buffer (scaled up) for performance on phones.
   const buf = document.createElement("canvas");
   const bctx = buf.getContext("2d");
   let BW = 0, BH = 0, viewW = 0, viewH = 0;
@@ -16,7 +15,7 @@
   function resize() {
     viewW = window.innerWidth; viewH = window.innerHeight;
     canvas.width = viewW; canvas.height = viewH;
-    BW = Math.min(520, viewW);              // render width
+    BW = Math.min(560, viewW);
     BH = Math.round(BW * (viewH / viewW));
     buf.width = BW; buf.height = BH;
   }
@@ -24,28 +23,130 @@
   resize();
 
   const el = (id) => document.getElementById(id);
-  const zbuf = new Float32Array(4096);      // per-column wall depth
+  const zbuf = new Float32Array(4096);
+  const TEX = {};                                  // procedural textures
 
   // ---------- Game state ----------
   const G = {
-    state: "menu",
-    floor: 1,
+    state: "menu", floor: 1,
     map: null, cols: 0, rows: 0,
-    posX: 1.5, posY: 1.5,
-    dirX: 1, dirY: 0, planeX: 0, planeY: 0.66,
+    posX: 1.5, posY: 1.5, dirX: 1, dirY: 0, planeX: 0, planeY: 0.8,
+    vx: 0, vy: 0,                                  // smoothed movement velocity
     hp: 140, maxHp: 140, stamina: 100,
     keys: 0, exit: null,
-    enemies: [], items: [], lamps: [],
+    enemies: [], items: [], lamps: [], props: [],
     invuln: 0, swing: 0, swingCd: 0,
-    hurt: 0, msgT: 0,
+    hurt: 0, msgT: 0, shake: 0, hitMark: 0,
+    bobPhase: 0, bobAmt: 0, pitch: 0,
+    creatureT: 2, ambientT: 3,
   };
 
-  const EMOJI = { zombie: "🧟", insect: "🕷️", monster: "👹", key: "🗝️", exit: "🚪", lamp: "💡" };
+  // ============================================================
+  //  PROCEDURAL TEXTURES
+  // ============================================================
+  function mkCanvas(w, h) { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; }
 
-  // ---------- Map generation (rooms + corridors) ----------
+  function buildWall(variant) {
+    const c = mkCanvas(64, 64), x = c.getContext("2d");
+    const grd = x.createLinearGradient(0, 0, 0, 64);
+    grd.addColorStop(0, "#2a3d54"); grd.addColorStop(0.5, "#1d2c3e"); grd.addColorStop(1, "#13202d");
+    x.fillStyle = grd; x.fillRect(0, 0, 64, 64);
+    x.strokeStyle = "rgba(0,0,0,0.55)"; x.lineWidth = 2;
+    x.strokeRect(1, 1, 62, 62); x.beginPath(); x.moveTo(32, 1); x.lineTo(32, 63); x.stroke();
+    x.fillStyle = "rgba(190,210,230,0.35)";
+    for (const p of [[7, 7], [57, 7], [7, 57], [57, 57], [25, 32], [39, 32]]) { x.beginPath(); x.arc(p[0], p[1], 1.7, 0, 7); x.fill(); }
+    if (variant) { x.strokeStyle = "rgba(120,150,180,0.45)"; x.lineWidth = 5; x.beginPath(); x.moveTo(48, 0); x.lineTo(48, 64); x.stroke(); x.strokeStyle = "rgba(0,0,0,0.3)"; x.lineWidth = 1; x.beginPath(); x.moveTo(48, 0); x.lineTo(48, 64); x.stroke(); }
+    else { x.fillStyle = "rgba(255,200,0,0.13)"; x.fillRect(0, 45, 64, 6); x.fillStyle = "rgba(0,0,0,0.25)"; for (let i = 0; i < 8; i++) x.fillRect(4 + i * 8, 45, 4, 6); }
+    x.fillStyle = "rgba(0,0,0,0.16)"; for (let i = 0; i < 12; i++) x.fillRect(Math.random() * 64, Math.random() * 64, Math.random() * 7, Math.random() * 3);
+    return c;
+  }
+
+  function buildZombie() {
+    const c = mkCanvas(80, 120), x = c.getContext("2d");
+    x.fillStyle = "#244a20"; x.fillRect(28, 92, 10, 28); x.fillRect(44, 92, 10, 28);     // legs
+    x.fillStyle = "#4f9f33"; x.fillRect(12, 58, 13, 44); x.fillRect(55, 58, 13, 44);     // reaching arms
+    x.fillStyle = "#9be86a"; x.fillRect(10, 96, 16, 8); x.fillRect(54, 96, 16, 8);       // pale hands
+    x.fillStyle = "#5fbf3f"; x.beginPath(); x.ellipse(40, 72, 23, 27, 0, 0, 7); x.fill(); // torso
+    x.fillStyle = "#3f6b2f"; x.beginPath(); x.arc(30, 80, 8, 0, 7); x.fill(); x.beginPath(); x.arc(50, 64, 6, 0, 7); x.fill();
+    x.fillStyle = "#6fcf4a"; x.beginPath(); x.arc(40, 40, 16, 0, 7); x.fill();           // head
+    x.fillStyle = "#ff1f3d"; x.shadowColor = "#ff1f3d"; x.shadowBlur = 8;
+    x.beginPath(); x.arc(34, 38, 3.2, 0, 7); x.arc(46, 38, 3.2, 0, 7); x.fill(); x.shadowBlur = 0;
+    x.strokeStyle = "#140000"; x.lineWidth = 2; x.beginPath(); x.moveTo(33, 49); x.lineTo(38, 47); x.lineTo(43, 50); x.lineTo(47, 48); x.stroke();
+    return c;
+  }
+  function buildInsect() {
+    const c = mkCanvas(80, 120), x = c.getContext("2d");
+    x.strokeStyle = "#2a1500"; x.lineWidth = 3; x.lineCap = "round";
+    for (const s of [-1, 1]) for (let i = 0; i < 3; i++) { x.beginPath(); x.moveTo(40, 72); x.lineTo(40 + s * (26 + i * 4), 60 + i * 18); x.stroke(); }
+    x.fillStyle = "#ff7a00"; x.beginPath(); x.ellipse(40, 76, 19, 24, 0, 0, 7); x.fill();   // abdomen
+    x.fillStyle = "#b85600"; x.beginPath(); x.ellipse(40, 52, 14, 13, 0, 0, 7); x.fill();    // thorax/head
+    x.strokeStyle = "#7a3a00"; x.lineWidth = 2; x.beginPath(); x.moveTo(34, 44); x.lineTo(28, 32); x.moveTo(46, 44); x.lineTo(52, 32); x.stroke();
+    x.fillStyle = "#ffe600"; x.shadowColor = "#ffe600"; x.shadowBlur = 6;
+    x.beginPath(); x.arc(35, 50, 2.6, 0, 7); x.arc(45, 50, 2.6, 0, 7); x.fill(); x.shadowBlur = 0;
+    return c;
+  }
+  function buildMonster() {
+    const c = mkCanvas(96, 128), x = c.getContext("2d");
+    x.fillStyle = "#7a0010"; x.fillRect(10, 56, 18, 50); x.fillRect(68, 56, 18, 50);        // arms
+    x.fillStyle = "#5a0c12"; x.fillRect(34, 96, 12, 30); x.fillRect(50, 96, 12, 30);        // legs
+    x.fillStyle = "#b3122a"; x.beginPath(); x.ellipse(48, 74, 30, 34, 0, 0, 7); x.fill();   // body
+    x.fillStyle = "#d11f3d"; x.beginPath(); x.arc(48, 38, 22, 0, 7); x.fill();              // head
+    x.fillStyle = "#3a0008"; x.beginPath(); x.moveTo(30, 24); x.lineTo(22, 4); x.lineTo(38, 20); x.fill(); x.beginPath(); x.moveTo(66, 24); x.lineTo(74, 4); x.lineTo(58, 20); x.fill(); // horns
+    x.fillStyle = "#ffd000"; x.shadowColor = "#ffd000"; x.shadowBlur = 10;
+    x.beginPath(); x.arc(40, 36, 4, 0, 7); x.arc(56, 36, 4, 0, 7); x.fill(); x.shadowBlur = 0;
+    x.fillStyle = "#160000"; x.beginPath(); x.ellipse(48, 50, 12, 7, 0, 0, 7); x.fill();    // maw
+    x.fillStyle = "#fff"; for (let i = -2; i <= 2; i++) { x.beginPath(); x.moveTo(48 + i * 4, 46); x.lineTo(48 + i * 4 + 2, 54); x.lineTo(48 + i * 4 - 2, 54); x.fill(); }
+    return c;
+  }
+  function buildBarrel() {
+    const c = mkCanvas(48, 64), x = c.getContext("2d");
+    x.fillStyle = "#c79a16"; x.fillRect(8, 8, 32, 54);
+    x.fillStyle = "#9c7a10"; x.fillRect(8, 8, 4, 54); x.fillRect(36, 8, 4, 54);
+    x.fillStyle = "#1a1a1a"; x.fillRect(8, 22, 32, 6); x.fillRect(8, 42, 32, 6);
+    x.fillStyle = "#111"; x.font = "bold 18px sans-serif"; x.textAlign = "center"; x.fillText("☢", 24, 40);
+    return c;
+  }
+  function buildTerminal() {
+    const c = mkCanvas(48, 64), x = c.getContext("2d");
+    x.fillStyle = "#2b2f3a"; x.fillRect(6, 6, 36, 26); x.fillStyle = "#0a3a2a"; x.fillRect(9, 9, 30, 20);
+    x.fillStyle = "#39ff8b"; x.font = "8px monospace"; x.fillText(">_RUN", 11, 18); x.fillText("ALERT", 11, 27);
+    x.fillStyle = "#3a3f4a"; x.fillRect(20, 32, 8, 18); x.fillRect(10, 50, 28, 6);
+    return c;
+  }
+  function buildCrate() {
+    const c = mkCanvas(48, 48), x = c.getContext("2d");
+    x.fillStyle = "#3a4250"; x.fillRect(4, 4, 40, 40); x.strokeStyle = "#222"; x.lineWidth = 3; x.strokeRect(4, 4, 40, 40);
+    x.beginPath(); x.moveTo(4, 4); x.lineTo(44, 44); x.moveTo(44, 4); x.lineTo(4, 44); x.stroke();
+    x.fillStyle = "rgba(255,200,0,0.5)"; x.fillRect(4, 21, 40, 6);
+    return c;
+  }
+  function buildKey() {
+    const c = mkCanvas(40, 40), x = c.getContext("2d");
+    x.shadowColor = "#7CFF00"; x.shadowBlur = 10; x.fillStyle = "#7CFF00"; x.fillRect(8, 14, 24, 12);
+    x.fillStyle = "#0c1218"; x.fillRect(12, 17, 8, 6); x.fillRect(24, 18, 4, 2);
+    return c;
+  }
+  function buildDoor() {
+    const c = mkCanvas(64, 96), x = c.getContext("2d");
+    x.shadowColor = "#7CFF00"; x.shadowBlur = 16; x.fillStyle = "rgba(124,255,0,0.5)"; x.fillRect(6, 4, 52, 92);
+    x.shadowBlur = 0; x.fillStyle = "#02110a"; x.fillRect(14, 12, 36, 84);
+    x.fillStyle = "#7CFF00"; x.font = "bold 12px sans-serif"; x.textAlign = "center"; x.fillText("EXIT", 32, 54);
+    return c;
+  }
+
+  function buildTextures() {
+    TEX.wall0 = buildWall(0); TEX.wall1 = buildWall(1);
+    TEX.zombie = buildZombie(); TEX.insect = buildInsect(); TEX.monster = buildMonster();
+    TEX.barrel = buildBarrel(); TEX.terminal = buildTerminal(); TEX.crate = buildCrate();
+    TEX.key = buildKey(); TEX.door = buildDoor();
+  }
+  buildTextures();
+
+  // ============================================================
+  //  MAP GENERATION
+  // ============================================================
   function gen(floor) {
-    const cols = Math.min(34, 20 + floor * 2);
-    const rows = Math.min(28, 16 + floor * 2);
+    const cols = Math.min(34, 20 + floor * 2), rows = Math.min(28, 16 + floor * 2);
     const m = [];
     for (let y = 0; y < rows; y++) m.push(new Array(cols).fill(1));
     const rooms = [];
@@ -62,75 +163,59 @@
 
     G.map = m; G.cols = cols; G.rows = rows;
     G.posX = rooms[0].cx + 0.5; G.posY = rooms[0].cy + 0.5;
-    G.dirX = 1; G.dirY = 0; G.planeX = 0; G.planeY = 0.66;
+    G.dirX = 1; G.dirY = 0; G.planeX = 0; G.planeY = 0.8; G.vx = 0; G.vy = 0;
 
-    // exit = farthest room
     let far = rooms[1] || rooms[0], best = -1;
     for (const r of rooms) { const d = Math.hypot(r.cx - rooms[0].cx, r.cy - rooms[0].cy); if (d > best) { best = d; far = r; } }
     G.exit = { x: far.cx + 0.5, y: far.cy + 0.5 };
 
-    // open floor cells away from spawn
     const open = [];
     for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++)
       if (m[y][x] === 0 && Math.hypot(x - rooms[0].cx, y - rooms[0].cy) > 4) open.push({ x: x + 0.5, y: y + 0.5 });
     const take = () => open.splice(Math.random() * open.length | 0, 1)[0] || { x: G.exit.x, y: G.exit.y };
 
-    // keycards
     G.items = [];
-    for (let i = 0; i < 3; i++) { const t = take(); G.items.push({ x: t.x, y: t.y, type: "key", taken: false }); }
+    for (let i = 0; i < 3; i++) { const t = take(); G.items.push({ x: t.x, y: t.y, taken: false }); }
 
-    // ceiling lamps (the only light) — one per room + a few extra; some broken
     G.lamps = [];
-    for (const r of rooms) G.lamps.push({ x: r.cx + 0.5, y: r.cy + 0.5, ph: Math.random() * 7, broken: Math.random() < 0.3 });
+    for (const r of rooms) G.lamps.push({ x: r.cx + 0.5, y: r.cy + 0.5, ph: Math.random() * 7, broken: Math.random() < 0.28 });
     for (let i = 0; i < Math.min(5, open.length); i++) { const t = take(); G.lamps.push({ x: t.x, y: t.y, ph: Math.random() * 7, broken: Math.random() < 0.35 }); }
 
-    // enemies — more & nastier each floor
+    G.props = [];
+    const propKinds = ["barrel", "terminal", "crate"];
+    for (let i = 0; i < Math.min(8, open.length); i++) { const t = take(); G.props.push({ x: t.x, y: t.y, tex: propKinds[i % 3] }); }
+
     G.enemies = [];
     const types = ["zombie", "insect", "monster"];
-    const count = Math.min(22, 3 + floor * 2);
-    const sc = 1 + (floor - 1) * 0.08;
-    for (let i = 0; i < count; i++) {
-      const t = take(); spawnEnemy(types[i % 3], t.x, t.y, sc);
-    }
+    const count = Math.min(22, 3 + floor * 2), sc = 1 + (floor - 1) * 0.08;
+    for (let i = 0; i < count; i++) { const t = take(); spawnEnemy(types[i % 3], t.x, t.y, sc); }
   }
-
   function spawnEnemy(type, x, y, sc) {
-    const e = { x, y, type, ph: Math.random() * 7, hp: 0, spd: 0, dmg: 0 };
-    if (type === "zombie") { e.hp = 60; e.spd = 0.9 * sc; e.dmg = 18; }
-    else if (type === "insect") { e.hp = 16; e.spd = 1.9 * sc; e.dmg = 5; }
-    else { e.hp = 100; e.spd = 1.3 * sc; e.dmg = 26; } // monster
-    e.maxHp = e.hp;
-    G.enemies.push(e);
+    const e = { x, y, type, ph: Math.random() * 7, flash: 0 };
+    if (type === "zombie") { e.hp = 60; e.spd = 0.9 * sc; e.dmg = 16; }
+    else if (type === "insect") { e.hp = 16; e.spd = 1.9 * sc; e.dmg = 4; }
+    else { e.hp = 100; e.spd = 1.3 * sc; e.dmg = 22; }
+    e.maxHp = e.hp; G.enemies.push(e);
   }
 
-  function isWall(x, y) {
-    const tx = x | 0, ty = y | 0;
-    if (tx < 0 || ty < 0 || tx >= G.cols || ty >= G.rows) return true;
-    return G.map[ty][tx] === 1;
-  }
-  function moveBy(dx, dy) {
-    const r = 0.22;
-    if (!isWall(G.posX + dx + Math.sign(dx) * r, G.posY)) G.posX += dx;
-    if (!isWall(G.posX, G.posY + dy + Math.sign(dy) * r)) G.posY += dy;
-  }
+  function isWall(x, y) { const tx = x | 0, ty = y | 0; if (tx < 0 || ty < 0 || tx >= G.cols || ty >= G.rows) return true; return G.map[ty][tx] === 1; }
+  function moveBy(dx, dy) { const r = 0.22; if (!isWall(G.posX + dx + Math.sign(dx) * r, G.posY)) G.posX += dx; if (!isWall(G.posX, G.posY + dy + Math.sign(dy) * r)) G.posY += dy; }
   function lampFlicker(l) {
     const t = performance.now() / 1000;
-    if (l.broken) { const f = Math.sin(t * 13 + l.ph) * Math.sin(t * 7.3 + l.ph * 2); let v = 0.55 + 0.45 * Math.max(0, f); if (Math.random() < 0.03) v *= 0.4; return v; }
-    return 0.9 + 0.1 * Math.sin(t * 2 + l.ph);
+    if (l.broken) { const f = Math.sin(t * 13 + l.ph) * Math.sin(t * 7.3 + l.ph * 2); let v = 0.55 + 0.45 * Math.max(0, f); if (Math.random() < 0.03) v *= 0.45; return v; }
+    return 0.92 + 0.08 * Math.sin(t * 2 + l.ph);
   }
-  // brightness at a world point from nearby flickering lamps + faint carry glow
   function lightAt(x, y) {
-    let b = 0.16;                                    // ambient floor
+    let b = 0.34;                                   // brighter ambient floor
     const carry = Math.hypot(x - G.posX, y - G.posY);
-    b += Math.max(0, 0.4 * (1 - carry / 3.2));       // small glow you carry
-    for (const l of G.lamps) {
-      const d = Math.hypot(x - l.x, y - l.y);
-      if (d < 6) b += lampFlicker(l) * Math.max(0, 1 - d / 6) * 0.9;
-    }
-    return Math.min(1.25, b);
+    b += Math.max(0, 0.45 * (1 - carry / 3.6));     // carry glow
+    for (const l of G.lamps) { const d = Math.hypot(x - l.x, y - l.y); if (d < 6.5) b += lampFlicker(l) * Math.max(0, 1 - d / 6.5) * 1.05; }
+    return Math.min(1.5, b);
   }
 
-  // ---------- Input ----------
+  // ============================================================
+  //  INPUT
+  // ============================================================
   const keys = {};
   let sprintKey = false;
   window.addEventListener("keydown", (e) => {
@@ -140,39 +225,31 @@
   });
   window.addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; if (e.key === "Shift") sprintKey = false; });
 
-  // Mouse look (pointer lock on desktop)
   canvas.addEventListener("click", () => { if (G.state === "playing" && canvas.requestPointerLock) canvas.requestPointerLock(); });
   window.addEventListener("mousemove", (e) => {
-    if (document.pointerLockElement === canvas && G.state === "playing") rotate(-e.movementX * 0.0025);
+    if (document.pointerLockElement === canvas && G.state === "playing") { rotate(-e.movementX * 0.0025); G.pitch = Math.max(-BH * 0.28, Math.min(BH * 0.28, G.pitch - e.movementY * 0.6)); }
   });
 
-  // Touch: left half = move, right half = look
   let moveTouch = null, lookTouch = null, touchSprint = false;
   function tStart(e) {
     for (const t of e.changedTouches) {
       if (t.target.classList && t.target.classList.contains("tbtn")) continue;
       if (t.clientX < window.innerWidth / 2 && moveTouch === null) moveTouch = { id: t.identifier, ox: t.clientX, oy: t.clientY, dx: 0, dy: 0 };
-      else if (lookTouch === null) lookTouch = { id: t.identifier, x: t.clientX };
+      else if (lookTouch === null) lookTouch = { id: t.identifier, x: t.clientX, y: t.clientY };
     }
   }
   function tMove(e) {
     for (const t of e.changedTouches) {
-      if (moveTouch && t.identifier === moveTouch.id) { moveTouch.dx = (t.clientX - moveTouch.ox) / 50; moveTouch.dy = (t.clientY - moveTouch.oy) / 50; }
-      if (lookTouch && t.identifier === lookTouch.id) { rotate(-(t.clientX - lookTouch.x) * 0.006); lookTouch.x = t.clientX; }
+      if (moveTouch && t.identifier === moveTouch.id) { moveTouch.dx = (t.clientX - moveTouch.ox) / 55; moveTouch.dy = (t.clientY - moveTouch.oy) / 55; }
+      if (lookTouch && t.identifier === lookTouch.id) { rotate(-(t.clientX - lookTouch.x) * 0.006); G.pitch = Math.max(-BH * 0.28, Math.min(BH * 0.28, G.pitch - (t.clientY - lookTouch.y) * 0.8)); lookTouch.x = t.clientX; lookTouch.y = t.clientY; }
     }
     e.preventDefault();
   }
-  function tEnd(e) {
-    for (const t of e.changedTouches) {
-      if (moveTouch && t.identifier === moveTouch.id) moveTouch = null;
-      if (lookTouch && t.identifier === lookTouch.id) lookTouch = null;
-    }
-  }
+  function tEnd(e) { for (const t of e.changedTouches) { if (moveTouch && t.identifier === moveTouch.id) moveTouch = null; if (lookTouch && t.identifier === lookTouch.id) lookTouch = null; } }
   canvas.addEventListener("touchstart", tStart, { passive: false });
   canvas.addEventListener("touchmove", tMove, { passive: false });
   canvas.addEventListener("touchend", tEnd);
   canvas.addEventListener("touchcancel", tEnd);
-
   el("bAxe").addEventListener("touchstart", (e) => { e.preventDefault(); swing(); }, { passive: false });
   el("bAxe").addEventListener("mousedown", swing);
   el("bSprint").addEventListener("touchstart", (e) => { e.preventDefault(); touchSprint = true; }, { passive: false });
@@ -184,69 +261,79 @@
     const npx = G.planeX * c - G.planeY * s; G.planeY = G.planeX * s + G.planeY * c; G.planeX = npx;
   }
 
-  // ---------- Combat ----------
+  // ============================================================
+  //  COMBAT
+  // ============================================================
   function swing() {
     if (G.state !== "playing" || G.swingCd > 0) return;
-    G.swingCd = 0.42; G.swing = 0.2;
-    Sound.sfx.swing();
+    G.swingCd = 0.4; G.swing = 0.22; Sound.sfx.swing();
     let hit = false;
     for (let i = G.enemies.length - 1; i >= 0; i--) {
       const e = G.enemies[i];
-      const dx = e.x - G.posX, dy = e.y - G.posY;
-      const d = Math.hypot(dx, dy);
-      if (d > 1.5) continue;
-      const dot = (dx / d) * G.dirX + (dy / d) * G.dirY;   // in front?
-      if (dot < 0.55) continue;
-      hit = true; e.hp -= 50; e.flash = 0.12;
-      e.x += (dx / d) * 0.4; e.y += (dy / d) * 0.4;         // knockback
+      const dx = e.x - G.posX, dy = e.y - G.posY, d = Math.hypot(dx, dy) || 1;
+      if (d > 1.7) continue;
+      if ((dx / d) * G.dirX + (dy / d) * G.dirY < 0.5) continue;
+      hit = true; e.hp -= 50; e.flash = 0.12; e.x += (dx / d) * 0.45; e.y += (dy / d) * 0.45;
       if (e.hp <= 0) { G.enemies.splice(i, 1); Sound.sfx.kill(); }
     }
-    if (hit) Sound.sfx.splat();
+    if (hit) { Sound.sfx.axeHit(); G.shake = Math.max(G.shake, 5); G.hitMark = 0.16; }
   }
-
   function hurt(amount) {
     if (G.invuln > 0) return;
-    G.hp -= amount; G.hurt = 0.4; G.invuln = 0.5; Sound.sfx.hurt();
+    G.hp -= amount; G.hurt = 0.4; G.invuln = 0.5; G.shake = Math.max(G.shake, 7); Sound.sfx.hurt();
     if (G.hp <= 0) { G.hp = 0; gameOver(); }
   }
 
-  // ---------- Update ----------
+  // ============================================================
+  //  UPDATE
+  // ============================================================
   function update(dt) {
     if (G.state !== "playing") return;
     if (G.swingCd > 0) G.swingCd -= dt;
     if (G.swing > 0) G.swing -= dt;
     if (G.invuln > 0) G.invuln -= dt;
     if (G.hurt > 0) G.hurt -= dt;
+    if (G.hitMark > 0) G.hitMark -= dt;
+    if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 30);
+    G.pitch *= Math.pow(0.0001, dt);                // ease pitch back to centre
 
-    // movement
+    // desired movement
     let fwd = 0, str = 0;
     if (keys["w"] || keys["arrowup"]) fwd += 1;
     if (keys["s"] || keys["arrowdown"]) fwd -= 1;
     if (keys["a"]) str -= 1;
     if (keys["d"]) str += 1;
-    if (keys["arrowleft"]) rotate(1.8 * dt);
-    if (keys["arrowright"]) rotate(-1.8 * dt);
+    if (keys["arrowleft"]) rotate(1.9 * dt);
+    if (keys["arrowright"]) rotate(-1.9 * dt);
     if (moveTouch) { fwd += -moveTouch.dy; str += moveTouch.dx; }
     fwd = Math.max(-1, Math.min(1, fwd)); str = Math.max(-1, Math.min(1, str));
 
-    const moving = Math.abs(fwd) + Math.abs(str) > 0.05;
-    const sprint = (sprintKey || touchSprint) && G.stamina > 0 && moving;
-    if (sprint) G.stamina = Math.max(0, G.stamina - 32 * dt);
-    else G.stamina = Math.min(100, G.stamina + 22 * dt);
-    const spd = (sprint ? 3.4 : 2.0) * dt;
-    if (moving) {
-      moveBy((G.dirX * fwd + G.planeX * str) * spd, (G.dirY * fwd + G.planeY * str) * spd);
-      if (!swing._st || performance.now() - swing._st > (sprint ? 300 : 450)) { Sound.sfx.step(); swing._st = performance.now(); }
-    }
+    const wanting = Math.abs(fwd) + Math.abs(str) > 0.05;
+    const sprint = (sprintKey || touchSprint) && G.stamina > 0 && wanting;
+    G.stamina = Math.max(0, Math.min(100, G.stamina + (sprint ? -32 : 22) * dt));
+    const maxSpd = sprint ? 3.6 : 2.2;
+    // smoothed velocity (acceleration + damping) → no more clunky stop/start
+    const desX = (G.dirX * fwd + G.planeX * str) * maxSpd;
+    const desY = (G.dirY * fwd + G.planeY * str) * maxSpd;
+    const k = Math.min(1, 12 * dt);
+    G.vx += (desX - G.vx) * k; G.vy += (desY - G.vy) * k;
+    moveBy(G.vx * dt, G.vy * dt);
 
-    // enemies seek the player (basic pathing) + contact damage
-    let nearest = 99;
+    const spdNow = Math.hypot(G.vx, G.vy);
+    if (spdNow > 0.2) {
+      G.bobPhase += dt * (sprint ? 13 : 9);
+      G.bobAmt = Math.min(1, G.bobAmt + dt * 4);
+      if (!swing._st || performance.now() - swing._st > (sprint ? 300 : 440)) { Sound.sfx.step(); swing._st = performance.now(); }
+    } else G.bobAmt = Math.max(0, G.bobAmt - dt * 4);
+
+    // enemies seek player + contact
+    let nearest = 99, nearType = null;
     for (const e of G.enemies) {
       e.ph += dt * 6; if (e.flash > 0) e.flash -= dt;
-      let dx = G.posX - e.x, dy = G.posY - e.y;
-      const d = Math.hypot(dx, dy) || 1; if (d < nearest) nearest = d;
+      let dx = G.posX - e.x, dy = G.posY - e.y; const d = Math.hypot(dx, dy) || 1;
+      if (d < nearest) { nearest = d; nearType = e.type; }
       dx /= d; dy /= d;
-      if (e.type === "insect") { const w = Math.sin(e.ph) * 0.5; const c = Math.cos(w), s = Math.sin(w); const ndx = dx * c - dy * s; dy = dx * s + dy * c; dx = ndx; }
+      if (e.type === "insect") { const w = Math.sin(e.ph) * 0.5, c = Math.cos(w), s = Math.sin(w), ndx = dx * c - dy * s; dy = dx * s + dy * c; dx = ndx; }
       const step = e.spd * dt;
       if (!isWall(e.x + dx * step, e.y)) e.x += dx * step;
       if (!isWall(e.x, e.y + dy * step)) e.y += dy * step;
@@ -254,117 +341,152 @@
     }
     Sound.setDanger(Math.max(0, 1 - nearest / 6));
 
-    // keycard pickups
-    for (const it of G.items) {
-      if (it.taken) continue;
-      if (Math.hypot(it.x - G.posX, it.y - G.posY) < 0.6) {
-        it.taken = true; G.keys++; Sound.sfx.keycard(); flash(`KEYCARD ${G.keys}/3`, 1.2);
-      }
-    }
-    // exit
-    if (Math.hypot(G.exit.x - G.posX, G.exit.y - G.posY) < 0.7) {
-      if (G.keys >= 3) nextFloor();
-      else if (G.msgT <= 0) flash(`NEED ${3 - G.keys} MORE KEYCARDS`, 1);
-    }
+    // creature vocalisations (by nearest type) + ambient lab noises
+    G.creatureT -= dt;
+    if (G.creatureT <= 0) { G.creatureT = 1.6 + Math.random() * 3; if (nearType && nearest < 11 && Sound.sfx[nearType]) Sound.sfx[nearType](); }
+    G.ambientT -= dt;
+    if (G.ambientT <= 0) { G.ambientT = 2 + Math.random() * 4; (Math.random() < 0.5 ? Sound.sfx.drip : Sound.sfx.clank)(); }
+
+    // pickups + exit
+    for (const it of G.items) if (!it.taken && Math.hypot(it.x - G.posX, it.y - G.posY) < 0.6) { it.taken = true; G.keys++; Sound.sfx.keycard(); flash(`KEYCARD ${G.keys}/3`, 1.2); }
+    if (Math.hypot(G.exit.x - G.posX, G.exit.y - G.posY) < 0.7) { if (G.keys >= 3) nextFloor(); else if (G.msgT <= 0) flash(`NEED ${3 - G.keys} MORE KEYCARDS`, 1); }
 
     if (G.msgT > 0) { G.msgT -= dt; if (G.msgT <= 0) el("msg").classList.remove("show"); }
     updateHUD();
   }
+  function nextFloor() { G.floor++; G.keys = 0; G.stamina = 100; gen(G.floor); flash(`FLOOR ${G.floor} — DEEPER IN`, 2); Sound.sfx.clank(); }
 
-  function nextFloor() {
-    G.floor++; G.keys = 0; G.stamina = 100;
-    gen(G.floor);
-    flash(`FLOOR ${G.floor} — DEEPER IN`, 2);
-  }
-
-  // ---------- Render ----------
+  // ============================================================
+  //  RENDER
+  // ============================================================
   function render() {
-    // ceiling + floor
-    bctx.fillStyle = "#070b12"; bctx.fillRect(0, 0, BW, BH / 2);
-    bctx.fillStyle = "#0a0f16"; bctx.fillRect(0, BH / 2, BW, BH / 2);
-    if (G.state !== "playing" && G.state !== "over") return;
+    const horizon = (BH / 2 + G.pitch + Math.sin(G.bobPhase) * 6 * G.bobAmt) | 0;
+    // ceiling gradient
+    let cg = bctx.createLinearGradient(0, 0, 0, horizon);
+    cg.addColorStop(0, "#04060a"); cg.addColorStop(1, "#0c131d");
+    bctx.fillStyle = cg; bctx.fillRect(0, 0, BW, Math.max(0, horizon));
+    // floor gradient
+    let fg = bctx.createLinearGradient(0, horizon, 0, BH);
+    fg.addColorStop(0, "#0e1620"); fg.addColorStop(1, "#070b11");
+    bctx.fillStyle = fg; bctx.fillRect(0, Math.max(0, horizon), BW, BH);
+    if (G.state !== "playing" && G.state !== "over") { blit(); return; }
 
-    // walls (DDA)
+    // textured walls
     for (let x = 0; x < BW; x++) {
       const camX = 2 * x / BW - 1;
       const rdx = G.dirX + G.planeX * camX, rdy = G.dirY + G.planeY * camX;
       let mapX = G.posX | 0, mapY = G.posY | 0;
       const ddx = Math.abs(1 / rdx), ddy = Math.abs(1 / rdy);
-      let stepX, stepY, sdx, sdy;
+      let stepX, stepY, sdx, sdy, side = 0, hitW = false, guard = 0;
       if (rdx < 0) { stepX = -1; sdx = (G.posX - mapX) * ddx; } else { stepX = 1; sdx = (mapX + 1 - G.posX) * ddx; }
       if (rdy < 0) { stepY = -1; sdy = (G.posY - mapY) * ddy; } else { stepY = 1; sdy = (mapY + 1 - G.posY) * ddy; }
-      let side = 0, hitW = false, guard = 0;
-      while (!hitW && guard++ < 64) {
+      while (!hitW && guard++ < 80) {
         if (sdx < sdy) { sdx += ddx; mapX += stepX; side = 0; } else { sdy += ddy; mapY += stepY; side = 1; }
         if (mapX < 0 || mapY < 0 || mapX >= G.cols || mapY >= G.rows || G.map[mapY][mapX] === 1) hitW = true;
       }
-      const perp = side === 0 ? (sdx - ddx) : (sdy - ddy);
+      const perp = Math.max(0.05, side === 0 ? (sdx - ddx) : (sdy - ddy));
       zbuf[x] = perp;
-      const lh = Math.min(BH * 4, (BH / perp) | 0);
-      const y0 = Math.max(0, (BH - lh) >> 1), y1 = Math.min(BH, (BH + lh) >> 1);
-      // light sampled at the wall hit point
+      const lh = (BH / perp) | 0;
+      const y0 = horizon - (lh >> 1);
+      // texture sample column
+      let wallX = side === 0 ? G.posY + perp * rdy : G.posX + perp * rdx; wallX -= Math.floor(wallX);
+      const tex = ((mapX + mapY) & 1) ? TEX.wall1 : TEX.wall0;
+      let texX = (wallX * 64) | 0; if ((side === 0 && rdx > 0) || (side === 1 && rdy < 0)) texX = 63 - texX;
+      bctx.drawImage(tex, texX, 0, 1, 64, x, y0, 1, lh);
+      // lighting + fog as a dark overlay
       const hx = G.posX + rdx * perp, hy = G.posY + rdy * perp;
-      let lum = lightAt(hx, hy) * (side === 1 ? 0.7 : 1);
-      lum *= Math.max(0.12, 1 - perp / 14);            // distance fog
-      const base = side === 1 ? [22, 34, 52] : [30, 44, 66];
-      const r = base[0] * lum | 0, g = base[1] * lum | 0, b = base[2] * lum | 0;
-      bctx.fillStyle = `rgb(${r},${g},${b})`;
-      bctx.fillRect(x, y0, 1, y1 - y0);
+      let lum = lightAt(hx, hy) * (side === 1 ? 0.78 : 1) * Math.max(0.16, 1 - perp / 16);
+      const shade = 1 - Math.min(1, lum);
+      if (shade > 0.01) { bctx.fillStyle = `rgba(2,4,8,${shade})`; bctx.fillRect(x, y0, 1, lh); }
     }
 
-    // sprites: enemies + items + lamps, back-to-front, depth-tested
+    // sprites (lamps glow + props + items + exit + enemies)
     const sprites = [];
-    for (const l of G.lamps) sprites.push({ x: l.x, y: l.y, emoji: EMOJI.lamp, scale: 0.5, glow: lampFlicker(l), vy: -0.35 });
-    for (const it of G.items) if (!it.taken) sprites.push({ x: it.x, y: it.y, emoji: EMOJI.key, scale: 0.55, vy: 0.05 });
-    sprites.push({ x: G.exit.x, y: G.exit.y, emoji: EMOJI.exit, scale: 1.0, vy: 0 });
-    for (const e of G.enemies) sprites.push({ x: e.x, y: e.y, emoji: EMOJI[e.type], scale: e.type === "insect" ? 0.6 : e.type === "monster" ? 1.1 : 0.9, flash: e.flash > 0, vy: 0.02, hp: e.hp, maxHp: e.maxHp });
+    for (const l of G.lamps) sprites.push({ x: l.x, y: l.y, glow: lampFlicker(l) });
+    for (const p of G.props) sprites.push({ x: p.x, y: p.y, tex: TEX[p.tex], scale: 0.8, ground: true });
+    for (const it of G.items) if (!it.taken) sprites.push({ x: it.x, y: it.y, tex: TEX.key, scale: 0.4, bob: true });
+    sprites.push({ x: G.exit.x, y: G.exit.y, tex: TEX.door, scale: 1.1, ground: true });
+    for (const e of G.enemies) sprites.push({ x: e.x, y: e.y, tex: TEX[e.type], scale: e.type === "monster" ? 1.15 : e.type === "insect" ? 0.7 : 0.95, ground: true, flash: e.flash > 0, hp: e.hp, maxHp: e.maxHp });
     sprites.sort((a, b) => Math.hypot(b.x - G.posX, b.y - G.posY) - Math.hypot(a.x - G.posX, a.y - G.posY));
 
     for (const s of sprites) {
       const sx = s.x - G.posX, sy = s.y - G.posY;
       const inv = 1 / (G.planeX * G.dirY - G.dirX * G.planeY);
-      const tx = inv * (G.dirY * sx - G.dirX * sy);
-      const ty = inv * (-G.planeY * sx + G.planeX * sy);   // depth
-      if (ty <= 0.2) continue;
-      const screenX = (BW / 2) * (1 + tx / ty);
+      const tX = inv * (G.dirY * sx - G.dirX * sy);
+      const tY = inv * (-G.planeY * sx + G.planeX * sy);
+      if (tY <= 0.25) continue;
+      const screenX = (BW / 2) * (1 + tX / tY);
       const col = screenX | 0;
-      if (col < 0 || col >= BW || ty >= zbuf[col]) continue;  // behind a wall
-      const size = Math.min(BH * 2.2, (BH / ty) * s.scale);
-      const py = BH / 2 + (s.vy * BH / ty);
+      if (col < 0 || col >= BW || tY >= zbuf[col]) continue;
+      const lum = Math.min(1, lightAt(s.x, s.y)) * Math.max(0.25, 1.25 - tY / 12);
+
+      if (s.glow !== undefined) {                    // ceiling lamp halo
+        const r = Math.max(6, (BH / tY) * 0.32);
+        const gy = horizon - (BH / tY) * 0.42;
+        const gr = bctx.createRadialGradient(screenX, gy, 1, screenX, gy, r);
+        gr.addColorStop(0, `rgba(200,225,255,${0.5 * s.glow})`); gr.addColorStop(1, "rgba(200,225,255,0)");
+        bctx.fillStyle = gr; bctx.beginPath(); bctx.arc(screenX, gy, r, 0, 7); bctx.fill();
+        bctx.fillStyle = `rgba(235,245,255,${0.7 * s.glow})`; bctx.fillRect(screenX - r * 0.18, gy - 2, r * 0.36, 3);
+        continue;
+      }
+      const h = (BH / tY) * s.scale, w = h * (s.tex.width / s.tex.height);
+      const py = s.ground ? horizon + (BH / tY) * 0.5 - h : horizon + (s.bob ? Math.sin(performance.now() / 300 + s.x) * 4 : 0) - h / 2;
       bctx.save();
-      bctx.globalAlpha = Math.max(0.25, Math.min(1, 1.2 - ty / 12));
-      bctx.font = size + "px serif";
-      bctx.textAlign = "center"; bctx.textBaseline = "middle";
-      if (s.glow !== undefined) { bctx.globalAlpha *= 0.4 + s.glow * 0.6; bctx.shadowColor = "#cfe4ff"; bctx.shadowBlur = 18 * s.glow; }
-      if (s.flash) { bctx.shadowColor = "#fff"; bctx.shadowBlur = 16; }
-      bctx.fillText(s.emoji, screenX, py);
+      bctx.globalAlpha = Math.max(0.2, lum);
+      bctx.drawImage(s.tex, screenX - w / 2, py, w, h);
+      if (s.flash) { bctx.globalCompositeOperation = "lighter"; bctx.globalAlpha = 0.6; bctx.drawImage(s.tex, screenX - w / 2, py, w, h); }
       bctx.restore();
-      // enemy health pip
       if (s.hp !== undefined && s.hp < s.maxHp) {
-        const w = size * 0.5;
-        bctx.fillStyle = "rgba(0,0,0,0.6)"; bctx.fillRect(screenX - w / 2, py - size * 0.55, w, 3);
-        bctx.fillStyle = "#7CFF00"; bctx.fillRect(screenX - w / 2, py - size * 0.55, w * (s.hp / s.maxHp), 3);
+        const bw = w * 0.7; bctx.fillStyle = "rgba(0,0,0,0.6)"; bctx.fillRect(screenX - bw / 2, py - 5, bw, 3);
+        bctx.fillStyle = "#7CFF00"; bctx.fillRect(screenX - bw / 2, py - 5, bw * (s.hp / s.maxHp), 3);
       }
     }
 
-    // blit buffer to screen
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(buf, 0, 0, BW, BH, 0, 0, viewW, viewH);
-
-    // fire-axe swing overlay (screen-space)
-    if (G.swing > 0) {
-      const t = 1 - G.swing / 0.2;
-      ctx.save();
-      ctx.strokeStyle = `rgba(200,235,255,${0.8 * (1 - t)})`; ctx.lineWidth = 6; ctx.shadowColor = "#aef"; ctx.shadowBlur = 16;
-      ctx.beginPath();
-      ctx.arc(viewW / 2, viewH * 1.05, viewH * 0.5, -Math.PI * 0.75 + t * 0.7, -Math.PI * 0.25 + t * 0.7);
-      ctx.stroke(); ctx.restore();
-    }
-    // hurt vignette
+    blit();
+    drawViewmodel();
     if (G.hurt > 0) { ctx.fillStyle = `rgba(255,0,30,${G.hurt * 0.5})`; ctx.fillRect(0, 0, viewW, viewH); }
+    if (G.hitMark > 0) drawHitMarker();
   }
 
-  // ---------- HUD / screens ----------
+  function blit() {
+    let ox = 0, oy = 0;
+    if (G.shake > 0) { ox = (Math.random() - 0.5) * G.shake * 2; oy = (Math.random() - 0.5) * G.shake * 2; }
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, viewW, viewH);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(buf, 0, 0, BW, BH, ox, oy, viewW, viewH);
+  }
+
+  // First-person fire-axe viewmodel (screen space)
+  function drawViewmodel() {
+    const sway = Math.sin(G.bobPhase) * 10 * G.bobAmt;
+    const swayY = Math.abs(Math.cos(G.bobPhase)) * 8 * G.bobAmt;
+    let rot = 0, lift = 0;
+    if (G.swing > 0) { const t = 1 - G.swing / 0.22; rot = -1.3 + t * 1.7; lift = -Math.sin(t * Math.PI) * viewH * 0.12; }
+    const s = viewH / 620;                            // scale to screen
+    ctx.save();
+    ctx.translate(viewW * 0.74 + sway, viewH + swayY + lift);
+    ctx.rotate(rot);
+    ctx.scale(s, s);
+    // handle
+    ctx.fillStyle = "#6b4326"; ctx.fillRect(-16, -300, 30, 320);
+    ctx.fillStyle = "#ff3b30"; ctx.fillRect(-16, -70, 30, 22);  // grip stripe
+    // steel head
+    ctx.fillStyle = "#c2c8d0";
+    ctx.beginPath(); ctx.moveTo(-16, -300); ctx.lineTo(-96, -330); ctx.lineTo(-80, -250); ctx.lineTo(14, -262); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#8b929c"; ctx.fillRect(-16, -304, 30, 16);
+    ctx.restore();
+  }
+
+  function drawHitMarker() {
+    const a = G.hitMark / 0.16, cx = viewW / 2, cy = viewH / 2, r = 14;
+    ctx.save(); ctx.globalAlpha = a; ctx.strokeStyle = "#ff4d4d"; ctx.lineWidth = 3;
+    for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { ctx.beginPath(); ctx.moveTo(cx + dx * 6, cy + dy * 6); ctx.lineTo(cx + dx * r, cy + dy * r); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  // ============================================================
+  //  HUD / SCREENS / LOOP
+  // ============================================================
   function updateHUD() {
     el("hpBar").style.width = Math.max(0, (G.hp / G.maxHp) * 100) + "%";
     el("staBar").firstElementChild.style.width = Math.max(0, G.stamina) + "%";
@@ -376,13 +498,10 @@
 
   function startGame() {
     Sound.unlock();
-    G.floor = 1; G.hp = G.maxHp; G.stamina = 100; G.keys = 0;
-    gen(1);
-    G.state = "playing";
-    show("menu", false); show("over", false);
-    show("hud", true); show("hudRight", true); show("touch", true);
-    Sound.startAmbient();
-    flash("FIND 3 KEYCARDS — REACH THE EXIT", 2.4);
+    G.floor = 1; G.hp = G.maxHp; G.stamina = 100; G.keys = 0; G.pitch = 0; G.shake = 0;
+    gen(1); G.state = "playing";
+    show("menu", false); show("over", false); show("hud", true); show("hudRight", true); show("touch", true);
+    Sound.startAmbient(); flash("FIND 3 KEYCARDS — REACH THE EXIT", 2.4);
   }
   function gameOver() {
     G.state = "over"; Sound.stopAmbient(); Sound.sfx.dead();
@@ -390,11 +509,9 @@
     el("overText").innerHTML = `You reached <b>Floor ${G.floor}</b>.`;
     show("over", true); show("hud", false); show("hudRight", false); show("touch", false);
   }
-
   el("bPlay").addEventListener("click", startGame);
   el("bAgain").addEventListener("click", startGame);
 
-  // ---------- Loop ----------
   let last = performance.now();
   function loop(now) {
     let dt = (now - last) / 1000; last = now;
