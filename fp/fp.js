@@ -33,7 +33,8 @@
     posX: 1.5, posY: 1.5, dirX: 1, dirY: 0, planeX: 0, planeY: 0.8,
     vx: 0, vy: 0,                                  // smoothed movement velocity
     hp: 140, maxHp: 140, stamina: 100,
-    keys: 0, exit: null,
+    evidence: 0, exit: null,                        // 3 hard drives → unlock exit
+    h1: 0, h2: 0,                                   // zone row boundaries
     enemies: [], items: [], lamps: [], props: [],
     invuln: 0, swing: 0, swingCd: 0,
     hurt: 0, msgT: 0, shake: 0, hitMark: 0,
@@ -126,6 +127,17 @@
     x.fillStyle = "#0c1218"; x.fillRect(12, 17, 8, 6); x.fillRect(24, 18, 4, 2);
     return c;
   }
+  function buildDrive() {
+    // encrypted hard drive — the Phase-1 evidence pickup
+    const c = mkCanvas(44, 34), x = c.getContext("2d");
+    x.fillStyle = "#10151f"; x.fillRect(4, 5, 36, 24);
+    x.strokeStyle = "#3a4658"; x.lineWidth = 2; x.strokeRect(4, 5, 36, 24);
+    x.fillStyle = "#5a6678"; x.fillRect(8, 10, 20, 2); x.fillRect(8, 14, 16, 2); x.fillRect(8, 18, 22, 2);
+    x.shadowColor = "#39ff8b"; x.shadowBlur = 9; x.fillStyle = "#39ff8b";
+    x.fillRect(32, 10, 4, 4);                          // status LED
+    x.shadowBlur = 0; x.fillStyle = "#1b6b46"; x.fillRect(8, 23, 28, 3);
+    return c;
+  }
   function buildDoor() {
     const c = mkCanvas(64, 96), x = c.getContext("2d");
     x.shadowColor = "#7CFF00"; x.shadowBlur = 16; x.fillStyle = "rgba(124,255,0,0.5)"; x.fillRect(6, 4, 52, 92);
@@ -138,57 +150,102 @@
     TEX.wall0 = buildWall(0); TEX.wall1 = buildWall(1);
     TEX.zombie = buildZombie(); TEX.insect = buildInsect(); TEX.monster = buildMonster();
     TEX.barrel = buildBarrel(); TEX.terminal = buildTerminal(); TEX.crate = buildCrate();
-    TEX.key = buildKey(); TEX.door = buildDoor();
+    TEX.key = buildKey(); TEX.door = buildDoor(); TEX.drive = buildDrive();
   }
   buildTextures();
+
+  // Which zone a tile row belongs to (1 Admin · 2 Specimen Labs · 3 Sub-Basement)
+  function zoneOf(ty) { return ty < G.h1 ? 1 : ty < G.h2 ? 2 : 3; }
 
   // ============================================================
   //  MAP GENERATION
   // ============================================================
   function gen(floor) {
-    const cols = Math.min(34, 20 + floor * 2), rows = Math.min(28, 16 + floor * 2);
+    // Tall facility split into 3 stacked zones joined by single bottleneck
+    // corridors:  Zone 1 Admin (top) → Zone 2 Specimen Labs → Zone 3 Sub-Basement.
+    const cols = Math.min(30, 20 + floor);
+    const rows = Math.min(54, 34 + floor * 2);
     const m = [];
     for (let y = 0; y < rows; y++) m.push(new Array(cols).fill(1));
-    const rooms = [];
-    const n = 6 + Math.min(floor, 6);
-    for (let i = 0; i < n; i++) {
-      const rw = 3 + (Math.random() * 4 | 0), rh = 3 + (Math.random() * 4 | 0);
-      const rx = 1 + (Math.random() * (cols - rw - 2) | 0), ry = 1 + (Math.random() * (rows - rh - 2) | 0);
-      for (let y = ry; y < ry + rh; y++) for (let x = rx; x < rx + rw; x++) m[y][x] = 0;
-      rooms.push({ cx: rx + (rw >> 1), cy: ry + (rh >> 1) });
+    const h1 = Math.floor(rows * 0.34), h2 = Math.floor(rows * 0.67);
+    G.h1 = h1; G.h2 = h2; G.map = m; G.cols = cols; G.rows = rows;
+
+    const cH = (x1, x2, y) => { for (let x = Math.min(x1, x2); x <= Math.max(x1, x2); x++) if (m[y]) m[y][x] = 0; };
+    const cV = (y1, y2, x) => { for (let y = Math.min(y1, y2); y <= Math.max(y1, y2); y++) if (m[y]) m[y][x] = 0; };
+
+    // carve `want` rooms inside a row band [r0,r1) and chain-connect them
+    function roomsIn(r0, r1, want) {
+      const rooms = [];
+      let tries = 0;
+      while (rooms.length < want && tries++ < want * 10) {
+        const rw = 3 + (Math.random() * 4 | 0), rh = 3 + (Math.random() * 3 | 0);
+        if (r1 - r0 < rh + 2) break;
+        const rx = 1 + (Math.random() * (cols - rw - 2) | 0);
+        const ry = r0 + 1 + (Math.random() * ((r1 - r0) - rh - 1) | 0);
+        for (let y = ry; y < ry + rh; y++) for (let x = rx; x < rx + rw; x++) m[y][x] = 0;
+        rooms.push({ cx: rx + (rw >> 1), cy: ry + (rh >> 1) });
+      }
+      if (!rooms.length) { const cy = (r0 + r1) >> 1, cx = cols >> 1; m[cy][cx] = 0; rooms.push({ cx, cy }); }
+      for (let i = 1; i < rooms.length; i++) { cH(rooms[i - 1].cx, rooms[i].cx, rooms[i - 1].cy); cV(rooms[i - 1].cy, rooms[i].cy, rooms[i].cx); }
+      return rooms;
     }
-    const cH = (x1, x2, y) => { for (let x = Math.min(x1, x2); x <= Math.max(x1, x2); x++) m[y][x] = 0; };
-    const cV = (y1, y2, x) => { for (let y = Math.min(y1, y2); y <= Math.max(y1, y2); y++) m[y][x] = 0; };
-    for (let i = 1; i < rooms.length; i++) { cH(rooms[i - 1].cx, rooms[i].cx, rooms[i - 1].cy); cV(rooms[i - 1].cy, rooms[i].cy, rooms[i].cx); }
+    const z1 = roomsIn(1, h1, 4), z2 = roomsIn(h1 + 1, h2, 4), z3 = roomsIn(h2 + 1, rows - 1, 5);
 
-    G.map = m; G.cols = cols; G.rows = rows;
-    G.posX = rooms[0].cx + 0.5; G.posY = rooms[0].cy + 0.5;
-    G.dirX = 1; G.dirY = 0; G.planeX = 0; G.planeY = 0.8; G.vx = 0; G.vy = 0;
+    // bottleneck corridors between zones (L-shaped, crossing the wall band)
+    const link = (a, b) => { cV(a.cy, b.cy, a.cx); cH(a.cx, b.cx, b.cy); };
+    link(z1[z1.length - 1], z2[0]);
+    link(z2[z2.length - 1], z3[0]);
 
-    let far = rooms[1] || rooms[0], best = -1;
-    for (const r of rooms) { const d = Math.hypot(r.cx - rooms[0].cx, r.cy - rooms[0].cy); if (d > best) { best = d; far = r; } }
+    // spawn in Zone 1; exit deep in Zone 3
+    G.posX = z1[0].cx + 0.5; G.posY = z1[0].cy + 0.5;
+    G.dirX = 0; G.dirY = 1; G.planeX = -0.8; G.planeY = 0; G.vx = 0; G.vy = 0;   // face into the facility
+    let far = z3[0], best = -1;
+    for (const r of z3) { const d = Math.hypot(r.cx - z3[0].cx, r.cy - z3[0].cy); if (d > best) { best = d; far = r; } }
     G.exit = { x: far.cx + 0.5, y: far.cy + 0.5 };
 
-    const open = [];
+    // one encrypted hard drive per zone (the Evidence objective)
+    const driveRoom = (z, avoid) => { for (const r of z) if (r !== avoid) return r; return z[0]; };
+    G.items = [
+      { ...cell(driveRoom(z1, z1[0])), taken: false, zone: 1 },
+      { ...cell(z2[(z2.length / 2) | 0]), taken: false, zone: 2 },
+      { ...cell(driveRoom(z3, far)), taken: false, zone: 3 },
+    ];
+
+    // open cells per zone (for lamps / props / enemies)
+    const byZone = { 1: [], 2: [], 3: [] };
     for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++)
-      if (m[y][x] === 0 && Math.hypot(x - rooms[0].cx, y - rooms[0].cy) > 4) open.push({ x: x + 0.5, y: y + 0.5 });
-    const take = () => open.splice(Math.random() * open.length | 0, 1)[0] || { x: G.exit.x, y: G.exit.y };
+      if (m[y][x] === 0) byZone[zoneOf(y)].push({ x: x + 0.5, y: y + 0.5 });
+    const grab = (z) => byZone[z].splice(Math.random() * byZone[z].length | 0, 1)[0] || { x: G.posX, y: G.posY };
 
-    G.items = [];
-    for (let i = 0; i < 3; i++) { const t = take(); G.items.push({ x: t.x, y: t.y, taken: false }); }
-
+    // lamps: Zone 1 bright & reliable → Zone 3 sparse & failing
     G.lamps = [];
-    for (const r of rooms) G.lamps.push({ x: r.cx + 0.5, y: r.cy + 0.5, ph: Math.random() * 7, broken: Math.random() < 0.28 });
-    for (let i = 0; i < Math.min(5, open.length); i++) { const t = take(); G.lamps.push({ x: t.x, y: t.y, ph: Math.random() * 7, broken: Math.random() < 0.35 }); }
+    const lampCfg = { 1: { rooms: z1, broken: 0.12, extra: 4 }, 2: { rooms: z2, broken: 0.4, extra: 2 }, 3: { rooms: z3, broken: 0.7, extra: 0 } };
+    for (const z of [1, 2, 3]) {
+      const cfg = lampCfg[z];
+      for (const r of cfg.rooms) G.lamps.push({ x: r.cx + 0.5, y: r.cy + 0.5, ph: Math.random() * 7, broken: Math.random() < cfg.broken });
+      for (let i = 0; i < cfg.extra; i++) { const t = grab(z); G.lamps.push({ x: t.x, y: t.y, ph: Math.random() * 7, broken: Math.random() < cfg.broken }); }
+    }
 
+    // props themed per zone: Admin terminals · Labs crates · Basement barrels
     G.props = [];
-    const propKinds = ["barrel", "terminal", "crate"];
-    for (let i = 0; i < Math.min(8, open.length); i++) { const t = take(); G.props.push({ x: t.x, y: t.y, tex: propKinds[i % 3] }); }
+    const propByZone = { 1: "terminal", 2: "crate", 3: "barrel" };
+    for (const z of [1, 2, 3]) for (let i = 0; i < 3; i++) { const t = grab(z); G.props.push({ x: t.x, y: t.y, tex: propByZone[z] }); }
 
+    // enemies spread per zone, more & heavier the deeper you go
     G.enemies = [];
-    const types = ["zombie", "insect", "monster"];
-    const count = Math.min(22, 3 + floor * 2), sc = 1 + (floor - 1) * 0.08;
-    for (let i = 0; i < count; i++) { const t = take(); spawnEnemy(types[i % 3], t.x, t.y, sc); }
+    const sc = 1 + (floor - 1) * 0.08;
+    const spawnZone = (z, n, types) => { for (let i = 0; i < n; i++) { const t = grab(z); spawnEnemy(types[i % types.length], t.x, t.y, sc); } };
+    spawnZone(1, 2 + floor, ["zombie"]);
+    spawnZone(2, 3 + floor, ["zombie", "insect"]);
+    spawnZone(3, 4 + floor, ["monster", "insect", "zombie"]);
+  }
+  function cell(r) { return { x: r.cx + 0.5, y: r.cy + 0.5 }; }
+  function spawnEnemy(type, x, y, sc) {
+    const e = { x, y, type, ph: Math.random() * 7, flash: 0 };
+    if (type === "zombie") { e.hp = 60; e.spd = 0.9 * sc; e.dmg = 16; }
+    else if (type === "insect") { e.hp = 16; e.spd = 1.9 * sc; e.dmg = 4; }
+    else { e.hp = 100; e.spd = 1.3 * sc; e.dmg = 22; }
+    e.maxHp = e.hp; G.enemies.push(e);
   }
   function spawnEnemy(type, x, y, sc) {
     const e = { x, y, type, ph: Math.random() * 7, flash: 0 };
@@ -206,9 +263,11 @@
     return 0.92 + 0.08 * Math.sin(t * 2 + l.ph);
   }
   function lightAt(x, y) {
-    let b = 0.34;                                   // brighter ambient floor
+    // ambient floor brightness drops zone by zone (Admin → Sub-Basement)
+    const z = zoneOf(y | 0);
+    let b = z === 1 ? 0.42 : z === 2 ? 0.26 : 0.12;
     const carry = Math.hypot(x - G.posX, y - G.posY);
-    b += Math.max(0, 0.45 * (1 - carry / 3.6));     // carry glow
+    b += Math.max(0, 0.45 * (1 - carry / 3.6));     // small glow you carry
     for (const l of G.lamps) { const d = Math.hypot(x - l.x, y - l.y); if (d < 6.5) b += lampFlicker(l) * Math.max(0, 1 - d / 6.5) * 1.05; }
     return Math.min(1.5, b);
   }
@@ -347,14 +406,20 @@
     G.ambientT -= dt;
     if (G.ambientT <= 0) { G.ambientT = 2 + Math.random() * 4; (Math.random() < 0.5 ? Sound.sfx.drip : Sound.sfx.clank)(); }
 
-    // pickups + exit
-    for (const it of G.items) if (!it.taken && Math.hypot(it.x - G.posX, it.y - G.posY) < 0.6) { it.taken = true; G.keys++; Sound.sfx.keycard(); flash(`KEYCARD ${G.keys}/3`, 1.2); }
-    if (Math.hypot(G.exit.x - G.posX, G.exit.y - G.posY) < 0.7) { if (G.keys >= 3) nextFloor(); else if (G.msgT <= 0) flash(`NEED ${3 - G.keys} MORE KEYCARDS`, 1); }
+    // evidence pickups + gated exit
+    for (const it of G.items) if (!it.taken && Math.hypot(it.x - G.posX, it.y - G.posY) < 0.6) {
+      it.taken = true; G.evidence++; Sound.sfx.keycard();
+      flash(`HARD DRIVE RECOVERED — ${G.evidence}/3`, 1.4);
+    }
+    if (Math.hypot(G.exit.x - G.posX, G.exit.y - G.posY) < 0.7) {
+      if (G.evidence >= 3) nextFloor();
+      else if (G.msgT <= 0) flash(`EXIT LOCKED — ${3 - G.evidence} MORE HARD DRIVE${3 - G.evidence > 1 ? "S" : ""}`, 1);
+    }
 
     if (G.msgT > 0) { G.msgT -= dt; if (G.msgT <= 0) el("msg").classList.remove("show"); }
     updateHUD();
   }
-  function nextFloor() { G.floor++; G.keys = 0; G.stamina = 100; gen(G.floor); flash(`FLOOR ${G.floor} — DEEPER IN`, 2); Sound.sfx.clank(); }
+  function nextFloor() { G.floor++; G.evidence = 0; G.stamina = 100; gen(G.floor); flash(`SECTOR ${G.floor} — DEEPER IN`, 2); Sound.sfx.clank(); }
 
   // ============================================================
   //  RENDER
@@ -398,13 +463,17 @@
       let lum = lightAt(hx, hy) * (side === 1 ? 0.78 : 1) * Math.max(0.16, 1 - perp / 16);
       const shade = 1 - Math.min(1, lum);
       if (shade > 0.01) { bctx.fillStyle = `rgba(2,4,8,${shade})`; bctx.fillRect(x, y0, 1, lh); }
+      // zone colour grade: Specimen Labs sickly green · Sub-Basement cold blue
+      const z = zoneOf(mapY);
+      if (z === 2) { bctx.fillStyle = `rgba(60,120,40,${0.12 * lum})`; bctx.fillRect(x, y0, 1, lh); }
+      else if (z === 3) { bctx.fillStyle = `rgba(20,40,80,${0.16 * lum})`; bctx.fillRect(x, y0, 1, lh); }
     }
 
     // sprites (lamps glow + props + items + exit + enemies)
     const sprites = [];
     for (const l of G.lamps) sprites.push({ x: l.x, y: l.y, glow: lampFlicker(l) });
     for (const p of G.props) sprites.push({ x: p.x, y: p.y, tex: TEX[p.tex], scale: 0.8, ground: true });
-    for (const it of G.items) if (!it.taken) sprites.push({ x: it.x, y: it.y, tex: TEX.key, scale: 0.4, bob: true });
+    for (const it of G.items) if (!it.taken) sprites.push({ x: it.x, y: it.y, tex: TEX.drive, scale: 0.45, bob: true });
     sprites.push({ x: G.exit.x, y: G.exit.y, tex: TEX.door, scale: 1.1, ground: true });
     for (const e of G.enemies) sprites.push({ x: e.x, y: e.y, tex: TEX[e.type], scale: e.type === "monster" ? 1.15 : e.type === "insect" ? 0.7 : 0.95, ground: true, flash: e.flash > 0, hp: e.hp, maxHp: e.maxHp });
     sprites.sort((a, b) => Math.hypot(b.x - G.posX, b.y - G.posY) - Math.hypot(a.x - G.posX, a.y - G.posY));
@@ -490,23 +559,24 @@
   function updateHUD() {
     el("hpBar").style.width = Math.max(0, (G.hp / G.maxHp) * 100) + "%";
     el("staBar").firstElementChild.style.width = Math.max(0, G.stamina) + "%";
-    el("floorChip").textContent = "FLOOR " + G.floor;
-    el("keyChip").textContent = "🗝 " + G.keys + "/3";
+    const ZN = { 1: "ADMIN", 2: "SPECIMEN LABS", 3: "SUB-BASEMENT" };
+    el("floorChip").textContent = "S" + G.floor + " · " + ZN[zoneOf(G.posY | 0)];
+    el("keyChip").textContent = "💾 " + G.evidence + "/3";
   }
   function flash(text, dur) { const m = el("msg"); m.textContent = text; m.classList.add("show"); G.msgT = dur; }
   function show(id, on) { el(id).classList.toggle("hidden", !on); }
 
   function startGame() {
     Sound.unlock();
-    G.floor = 1; G.hp = G.maxHp; G.stamina = 100; G.keys = 0; G.pitch = 0; G.shake = 0;
+    G.floor = 1; G.hp = G.maxHp; G.stamina = 100; G.evidence = 0; G.pitch = 0; G.shake = 0;
     gen(1); G.state = "playing";
     show("menu", false); show("over", false); show("hud", true); show("hudRight", true); show("touch", true);
-    Sound.startAmbient(); flash("FIND 3 KEYCARDS — REACH THE EXIT", 2.4);
+    Sound.startAmbient(); flash("RECOVER 3 HARD DRIVES — REACH THE EXIT", 2.6);
   }
   function gameOver() {
     G.state = "over"; Sound.stopAmbient(); Sound.sfx.dead();
     el("overTitle").textContent = "CONSUMED";
-    el("overText").innerHTML = `You reached <b>Floor ${G.floor}</b>.`;
+    el("overText").innerHTML = `You recovered <b>${G.evidence}/3</b> drives in Sector <b>${G.floor}</b>.`;
     show("over", true); show("hud", false); show("hudRight", false); show("touch", false);
   }
   el("bPlay").addEventListener("click", startGame);
