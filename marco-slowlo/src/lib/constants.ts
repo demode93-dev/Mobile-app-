@@ -30,33 +30,44 @@ export const BUBBLE_MAX_RADIUS = 34
 /** Half-extent of the square arena floor, in meters. */
 export const ARENA_HALF_SIZE = 22
 
-/** Number of wandering AI "shouters" sharing the arena. */
-export const BOT_COUNT = 3
+/** There is exactly one bot in the tag match — Player vs. "the Bot". */
+export const BOT_COUNT = 1
+
+/** Fixed id for the single bot, referenced directly by gameStore/SoundBubbleManager. */
+export const BOT_ID = 'bot-1'
 
 /** Bots must spawn at least this far from the player's (0,0,0) spawn point. */
 export const BOT_SPAWN_MIN_DISTANCE = 15
 
 /**
- * Seconds of total invulnerability at the very start of a round (measured
- * from `survivalTime`, which only ticks while phase === 'playing'), so a
- * bot can't shout the instant the player spawns in.
+ * Seconds of total tag-immunity at the very start of a match (measured from
+ * elapsed match time), so the hunter can't tag the instant the match
+ * begins — mostly a safety net now that BOT_SPAWN_MIN_DISTANCE already
+ * forces a real gap to close first.
  */
 export const ROUND_START_GRACE = 1.0
 
-/** Seconds the player is rooted in place (0 speed) immediately after shouting. */
+/** Seconds the shouter is rooted in place (0 speed) immediately after shouting. */
 export const SHOUT_ROOT_DURATION = 0.5
 
 /**
- * Seconds after a bubble's origin during which its OWNER is immune to being
- * caught by that specific bubble. Must be >= SHOUT_ROOT_DURATION plus the
- * time it takes to close the gap the root created (root time * growth
- * rate, covered at (sprint - growth) m/s) or rooting the player would make
- * every shout an unavoidable self-catch. With the numbers above:
- * root creates a 0.5*WALK_SPEED gap the player must close by sprinting,
- * which takes 0.5*WALK_SPEED / (SPRINT_SPEED - WALK_SPEED) seconds after
- * the root ends — 1.0s total covers exactly that.
+ * Seconds of tag-immunity after any role reversal. A bubble that just
+ * caused a tag is owned by the now-former "It", so it structurally can't
+ * cause another tag next frame (only the CURRENT "It"'s bubble can tag) —
+ * this is purely a defensive margin against any other lingering bubble
+ * causing an immediate re-flip the same instant.
  */
-export const SELF_BUBBLE_CATCH_GRACE = 1.0
+export const TAG_IMMUNITY_DURATION = 0.3
+
+/** Length of a match, in seconds. */
+export const MATCH_DURATION = 60
+
+/**
+ * Distance, in meters, within which the hunting bot commits to a shout
+ * attempt on the evader. Too far and the bubble would never catch up;
+ * this is roughly "close enough that a miss is a real risk."
+ */
+export const BOT_HUNT_AGGRO_RANGE = 10
 
 /** Number of scattered cover pillars generated across the floor. */
 export const COVER_PILLAR_COUNT = 42

@@ -141,3 +141,40 @@ export function isLineOfSightBlocked(
   }
   return false
 }
+
+/**
+ * Picks the best nearby "hiding spot" for someone fleeing `threatPos`: for
+ * every pillar, the point just beyond it on the far side from the threat
+ * (i.e. in that pillar's acoustic/visual shadow), then returns whichever
+ * such spot is closest to `hiderPos`. Returns null if there are no pillars
+ * at all. Pure 2D (XZ) geometry — same convention as isLineOfSightBlocked.
+ */
+export function findHidingSpot(
+  hiderPos: Vec3Like,
+  threatPos: Vec3Like,
+  pillars: CoverPillar[],
+  margin: number,
+): { x: number; z: number } | null {
+  let best: { x: number; z: number } | null = null
+  let bestDistSq = Infinity
+
+  for (const pillar of pillars) {
+    const awayX = pillar.x - threatPos.x
+    const awayZ = pillar.z - threatPos.z
+    const len = Math.hypot(awayX, awayZ)
+    if (len < 1e-4) continue // threat is exactly on the pillar center; ill-defined direction
+
+    const spotX = pillar.x + (awayX / len) * (pillar.radius + margin)
+    const spotZ = pillar.z + (awayZ / len) * (pillar.radius + margin)
+    const dx = spotX - hiderPos.x
+    const dz = spotZ - hiderPos.z
+    const distSq = dx * dx + dz * dz
+
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq
+      best = { x: spotX, z: spotZ }
+    }
+  }
+
+  return best
+}

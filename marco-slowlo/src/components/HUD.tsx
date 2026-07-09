@@ -1,10 +1,12 @@
 import { useGameStore } from '../store/gameStore'
 import { unlockAudio } from '../lib/audio'
+import { BOT_ID } from '../lib/constants'
 
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m.toString().padStart(2, '0')}:${s.toFixed(2).padStart(5, '0')}`
+function formatCountdown(seconds: number): string {
+  const whole = Math.max(0, Math.ceil(seconds))
+  const m = Math.floor(whole / 60)
+  const s = whole % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
 }
 
 function StaminaBar() {
@@ -56,13 +58,27 @@ function ShoutPulse() {
   )
 }
 
-function ReadyOverlay() {
-  const startGame = useGameStore((s) => s.startGame)
-  const bestSurvivalTime = useGameStore((s) => s.bestSurvivalTime)
+function RoleBanner() {
+  const currentItId = useGameStore((s) => s.currentItId)
+  const isHunting = currentItId === 'player'
+
+  return (
+    <div
+      className={`mt-2 inline-block rounded-full px-4 py-1 text-sm font-black tracking-[0.2em] ${
+        isHunting ? 'bg-red-600/90 text-white' : 'bg-emerald-500/90 text-black'
+      }`}
+    >
+      {isHunting ? 'YOU ARE HUNTING' : 'EVADE'}
+    </div>
+  )
+}
+
+function StartOverlay() {
+  const startMatch = useGameStore((s) => s.startMatch)
 
   function handleStart() {
     unlockAudio()
-    startGame()
+    startMatch()
     requestAnimationFrame(() => {
       document.querySelector('canvas')?.requestPointerLock()
     })
@@ -74,7 +90,7 @@ function ReadyOverlay() {
         <h1 className="text-3xl font-semibold tracking-tight text-white">
           MARCO <span className="text-fuchsia-400">SLOW</span>-LO
         </h1>
-        <p className="mt-2 text-sm text-white/60">Outrun your own voice.</p>
+        <p className="mt-2 text-sm text-white/60">Tag, with your own voice as the weapon.</p>
 
         <div className="mt-6 space-y-2 text-left text-sm text-white/70">
           <p>
@@ -87,43 +103,31 @@ function ReadyOverlay() {
             expanding sound bubble at walking speed
           </p>
           <p className="text-white/50">
-            The bubble grows outward from where you stood. Stand still, and it swallows you.
-            Sprint clear before it catches up.
+            The Bot starts as "It." Whoever is It must catch the other in their bubble to pass the
+            tag on — a hit through a pillar's shadow doesn't count. Survive as the target until the
+            60-second clock runs out to win.
           </p>
         </div>
-
-        {bestSurvivalTime > 0 && (
-          <p className="mt-4 text-xs text-white/40">
-            Best survival: <span className="text-violet-300">{formatTime(bestSurvivalTime)}</span>
-          </p>
-        )}
 
         <button
           onClick={handleStart}
           className="mt-6 w-full rounded-lg bg-fuchsia-500 px-6 py-3 font-semibold text-white transition hover:bg-fuchsia-400 active:scale-[0.98]"
         >
-          Enter the Arena
+          Start Match
         </button>
       </div>
     </div>
   )
 }
 
-function CaughtOverlay() {
-  const startGame = useGameStore((s) => s.startGame)
-  const survivalTime = useGameStore((s) => s.survivalTime)
-  const bestSurvivalTime = useGameStore((s) => s.bestSurvivalTime)
-  const caughtByOwnerId = useGameStore((s) => s.caughtByOwnerId)
-  const isNewBest = survivalTime >= bestSurvivalTime && survivalTime > 0
-
-  const caughtMessage =
-    caughtByOwnerId === 'player'
-      ? 'Your own voice caught you.'
-      : `${caughtByOwnerId}'s shout swallowed you.`
+function GameOverOverlay() {
+  const startMatch = useGameStore((s) => s.startMatch)
+  const currentItId = useGameStore((s) => s.currentItId)
+  const playerWon = currentItId === BOT_ID // whoever is NOT "It" when the clock hits 0 wins
 
   function handleRestart() {
     unlockAudio()
-    startGame()
+    startMatch()
     requestAnimationFrame(() => {
       document.querySelector('canvas')?.requestPointerLock()
     })
@@ -131,22 +135,21 @@ function CaughtOverlay() {
 
   return (
     <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="max-w-md rounded-2xl border border-white/10 bg-[#0b0912]/90 p-8 text-center shadow-[0_0_60px_rgba(244,63,94,0.25)]">
-        <h2 className="text-2xl font-semibold text-rose-400">CAUGHT</h2>
-        <p className="mt-1 text-sm text-white/60">{caughtMessage}</p>
-
-        <p className="mt-6 text-4xl font-bold tabular-nums text-white">{formatTime(survivalTime)}</p>
-        {isNewBest ? (
-          <p className="mt-1 text-xs font-semibold text-emerald-300">NEW BEST</p>
-        ) : (
-          <p className="mt-1 text-xs text-white/40">Best: {formatTime(bestSurvivalTime)}</p>
-        )}
+      <div className="max-w-md rounded-2xl border border-white/10 bg-[#0b0912]/90 p-8 text-center shadow-[0_0_60px_rgba(124,58,237,0.25)]">
+        <h2 className={`text-3xl font-black tracking-tight ${playerWon ? 'text-emerald-400' : 'text-rose-400'}`}>
+          {playerWon ? 'YOU WIN' : 'YOU LOSE'}
+        </h2>
+        <p className="mt-2 text-sm text-white/60">
+          {playerWon
+            ? "Time ran out with the Bot still hunting — you evaded the whole match."
+            : "Time ran out while you were still hunting — the Bot evaded you."}
+        </p>
 
         <button
           onClick={handleRestart}
           className="mt-6 w-full rounded-lg bg-fuchsia-500 px-6 py-3 font-semibold text-white transition hover:bg-fuchsia-400 active:scale-[0.98]"
         >
-          Try Again
+          Play Again
         </button>
       </div>
     </div>
@@ -154,19 +157,18 @@ function CaughtOverlay() {
 }
 
 function PlayingHUD() {
-  const survivalTime = useGameStore((s) => s.survivalTime)
+  const matchTimeRemaining = useGameStore((s) => s.matchTimeRemaining)
   const isRooted = useGameStore((s) => s.isRooted)
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
       <div className="absolute left-1/2 top-6 -translate-x-1/2 text-center">
-        <p className="text-2xl font-bold tabular-nums text-white/90 drop-shadow">
-          {formatTime(survivalTime)}
+        <p className="text-4xl font-black tabular-nums text-white/95 drop-shadow">
+          {formatCountdown(matchTimeRemaining)}
         </p>
+        <RoleBanner />
         {isRooted && (
-          <p className="mt-1 text-xs font-bold tracking-[0.3em] text-rose-400 animate-pulse">
-            ROOTED
-          </p>
+          <p className="mt-2 text-xs font-bold tracking-[0.3em] text-rose-400 animate-pulse">ROOTED</p>
         )}
       </div>
 
@@ -187,8 +189,8 @@ export function HUD() {
   return (
     <div className="absolute inset-0">
       <PlayingHUD />
-      {phase === 'ready' && <ReadyOverlay />}
-      {phase === 'caught' && <CaughtOverlay />}
+      {phase === 'start' && <StartOverlay />}
+      {phase === 'gameOver' && <GameOverOverlay />}
     </div>
   )
 }

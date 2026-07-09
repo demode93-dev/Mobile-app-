@@ -48,6 +48,7 @@ function shortestAngleDelta(from: number, to: number): number {
  * every frame instead of React state, so it never causes a re-render. */
 export function PlayerController() {
   const { camera, gl } = useThree()
+  const phase = useGameStore((s) => s.phase)
   const bodyRef = useRef<THREE.Group>(null)
   const yawRef = useRef(0)
   const pitchRef = useRef(0.22)
@@ -139,7 +140,7 @@ export function PlayerController() {
     function onMouseDown() {
       unlockAudio()
       const { phase } = useGameStore.getState()
-      if (phase === 'caught') return
+      if (phase !== 'playing') return
       if (document.pointerLockElement !== canvas) {
         canvas.requestPointerLock()
       } else {
@@ -162,6 +163,15 @@ export function PlayerController() {
     }
   }, [gl])
 
+  // Release the mouse the instant we're not actively playing — otherwise
+  // the cursor stays hidden/constrained under the Start/Game Over overlay
+  // and a real click can't reliably land on the button underneath it.
+  useEffect(() => {
+    if (phase !== 'playing' && document.pointerLockElement === gl.domElement) {
+      document.exitPointerLock()
+    }
+  }, [phase, gl])
+
   useFrame((_state, rawDelta) => {
     const delta = Math.min(rawDelta, MAX_FRAME_DELTA)
     const {
@@ -170,7 +180,7 @@ export function PlayerController() {
       shoutCooldownRemaining,
       setStamina,
       setShoutCooldownRemaining,
-      tickSurvival,
+      tickMatch,
       setRooted,
     } = useGameStore.getState()
 
@@ -193,7 +203,7 @@ export function PlayerController() {
         wasRootedRef.current = false
       }
 
-      tickSurvival(delta)
+      tickMatch(delta)
 
       const isRooted = gameClock.elapsed < rootedUntilRef.current
       if (isRooted !== wasRootedRef.current) {

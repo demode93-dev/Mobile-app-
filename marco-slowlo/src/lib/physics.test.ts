@@ -4,6 +4,7 @@ import {
   bubblesCatchingPoint,
   clearanceFromBubble,
   distance3,
+  findHidingSpot,
   isBubbleExpired,
   isLineOfSightBlocked,
   isPointCaughtByBubble,
@@ -222,5 +223,51 @@ describe('isLineOfSightBlocked (cover pillars / "acoustic shadow")', () => {
     expect(isPointCaughtByBubble(player, b, t)).toBe(true)
     const pillars = [pillar({ x: 0, z: 0, radius: 1 })]
     expect(isLineOfSightBlocked(b.origin, player, pillars)).toBe(true)
+  })
+})
+
+describe('findHidingSpot (evading-bot AI)', () => {
+  function pillar(overrides: Partial<CoverPillar> = {}): CoverPillar {
+    return { x: 0, z: 0, radius: 1, ...overrides }
+  }
+
+  it('returns null when there are no pillars', () => {
+    expect(findHidingSpot({ x: 0, y: 0, z: 0 }, { x: 5, y: 0, z: 0 }, [], 1)).toBeNull()
+  })
+
+  it('places the spot on the far side of the pillar from the threat', () => {
+    const threat = { x: -10, y: 0, z: 0 }
+    const hider = { x: 0, y: 0, z: 0 }
+    const pillars = [pillar({ x: 0, z: 0, radius: 1 })]
+    const spot = findHidingSpot(hider, threat, pillars, 1.5)
+    expect(spot).not.toBeNull()
+    // Threat is to the west (-x), so the shadow spot should be east (+x) of the pillar.
+    expect(spot!.x).toBeGreaterThan(0)
+    expect(spot!.x).toBeCloseTo(1 + 1.5) // pillar.radius + margin
+    expect(spot!.z).toBeCloseTo(0)
+  })
+
+  it('picks whichever pillar shadow is closest to the hider, not just the first', () => {
+    const threat = { x: 0, y: 0, z: -20 }
+    const hider = { x: 8, y: 0, z: 0 }
+    const pillars = [
+      pillar({ x: -8, z: 0, radius: 1 }), // shadow spot far from hider (west side)
+      pillar({ x: 8, z: 0, radius: 1 }), // shadow spot right next to hider (east side)
+    ]
+    const spot = findHidingSpot(hider, threat, pillars, 1)
+    expect(spot).not.toBeNull()
+    // Both pillars' shadow spots are roughly equidistant from the threat,
+    // but only the east pillar's shadow is anywhere near the hider.
+    expect(spot!.x).toBeGreaterThan(5)
+  })
+
+  it('skips a pillar sitting exactly on the threat (undefined direction) rather than crashing', () => {
+    const threat = { x: 0, y: 0, z: 0 }
+    const hider = { x: 5, y: 0, z: 5 }
+    const pillars = [pillar({ x: 0, z: 0, radius: 1 }), pillar({ x: 5, z: 0, radius: 1 })]
+    const spot = findHidingSpot(hider, threat, pillars, 1)
+    expect(spot).not.toBeNull()
+    expect(Number.isFinite(spot!.x)).toBe(true)
+    expect(Number.isFinite(spot!.z)).toBe(true)
   })
 })
