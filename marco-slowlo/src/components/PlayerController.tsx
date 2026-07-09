@@ -7,6 +7,7 @@ import {
   ARENA_HALF_SIZE,
   MAX_FRAME_DELTA,
   PLAYER_HITBOX_RADIUS,
+  SHOUT_ROOT_DURATION,
   SPRINT_SPEED,
   STAMINA_MAX,
   STAMINA_REGEN_TIME,
@@ -52,12 +53,15 @@ export function PlayerController() {
   const cameraCurrentPos = useRef(new THREE.Vector3(0, CAMERA_HEIGHT, CAMERA_DISTANCE))
   const isLockedRef = useRef(false)
   const wasPlayingRef = useRef(false)
+  const rootedUntilRef = useRef(0)
+  const wasRootedRef = useRef(false)
 
   useEffect(() => {
     function triggerShout() {
       const { phase, shoutCooldownRemaining, spawnBubble } = useGameStore.getState()
       if (phase !== 'playing' || shoutCooldownRemaining > 0) return
       spawnBubble('player', playerTransform.position, gameClock.elapsed)
+      rootedUntilRef.current = gameClock.elapsed + SHOUT_ROOT_DURATION
     }
 
     const canvas = gl.domElement
@@ -160,6 +164,7 @@ export function PlayerController() {
       setStamina,
       setShoutCooldownRemaining,
       tickSurvival,
+      setRooted,
     } = useGameStore.getState()
 
     if (shoutCooldownRemaining > 0) {
@@ -177,9 +182,17 @@ export function PlayerController() {
         wasPlayingRef.current = true
         playerTransform.position.set(0, 0, 0)
         bodyYawRef.current = 0
+        rootedUntilRef.current = 0
+        wasRootedRef.current = false
       }
 
       tickSurvival(delta)
+
+      const isRooted = gameClock.elapsed < rootedUntilRef.current
+      if (isRooted !== wasRootedRef.current) {
+        wasRootedRef.current = isRooted
+        setRooted(isRooted)
+      }
 
       const { forward, back, left, right, sprint } = keys.current
       const inputForward = (forward ? 1 : 0) - (back ? 1 : 0)
@@ -194,7 +207,7 @@ export function PlayerController() {
         dz /= len
       }
 
-      const wantsSprint = sprint && hasInput && stamina > STAMINA_SPRINT_MIN
+      const wantsSprint = !isRooted && sprint && hasInput && stamina > STAMINA_SPRINT_MIN
       const speed = wantsSprint ? SPRINT_SPEED : WALK_SPEED
 
       if (wantsSprint) {
@@ -204,11 +217,13 @@ export function PlayerController() {
       }
 
       if (hasInput) {
-        playerTransform.position.x += dx * speed * delta
-        playerTransform.position.z += dz * speed * delta
-
         const targetBodyYaw = Math.atan2(-dx, -dz)
         bodyYawRef.current += shortestAngleDelta(bodyYawRef.current, targetBodyYaw) * Math.min(1, TURN_SMOOTHING * delta)
+      }
+
+      if (hasInput && !isRooted) {
+        playerTransform.position.x += dx * speed * delta
+        playerTransform.position.z += dz * speed * delta
       }
 
       const distFromCenter = Math.hypot(playerTransform.position.x, playerTransform.position.z)

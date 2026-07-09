@@ -5,7 +5,9 @@ import {
   clearanceFromBubble,
   distance3,
   isBubbleExpired,
+  isLineOfSightBlocked,
   isPointCaughtByBubble,
+  type CoverPillar,
   type SoundBubble,
 } from './physics'
 
@@ -159,5 +161,66 @@ describe('clearanceFromBubble', () => {
     expect(clearanceFromBubble({ x: 10, y: 0, z: 0 }, b, t)).toBeCloseTo(4)
     expect(clearanceFromBubble({ x: 6, y: 0, z: 0 }, b, t)).toBeCloseTo(0)
     expect(clearanceFromBubble({ x: 2, y: 0, z: 0 }, b, t)).toBeCloseTo(-4)
+  })
+})
+
+describe('isLineOfSightBlocked (cover pillars / "acoustic shadow")', () => {
+  function pillar(overrides: Partial<CoverPillar> = {}): CoverPillar {
+    return { x: 0, z: 0, radius: 1, ...overrides }
+  }
+
+  it('is not blocked with no pillars at all', () => {
+    const origin = { x: -10, y: 0, z: 0 }
+    const target = { x: 10, y: 0, z: 0 }
+    expect(isLineOfSightBlocked(origin, target, [])).toBe(false)
+  })
+
+  it('is blocked when a pillar sits directly on the midpoint of the line', () => {
+    const origin = { x: -10, y: 0, z: 0 }
+    const target = { x: 10, y: 0, z: 0 }
+    const pillars = [pillar({ x: 0, z: 0, radius: 1 })]
+    expect(isLineOfSightBlocked(origin, target, pillars)).toBe(true)
+  })
+
+  it('is not blocked when a pillar is off to the side, clear of its radius', () => {
+    const origin = { x: -10, y: 0, z: 0 }
+    const target = { x: 10, y: 0, z: 0 }
+    const pillars = [pillar({ x: 0, z: 5, radius: 1 })] // 5m off the line, radius only 1m
+    expect(isLineOfSightBlocked(origin, target, pillars)).toBe(false)
+  })
+
+  it('is blocked at the exact tangent point (distance == radius)', () => {
+    const origin = { x: -10, y: 0, z: 0 }
+    const target = { x: 10, y: 0, z: 0 }
+    const pillars = [pillar({ x: 0, z: 1, radius: 1 })] // exactly grazes the line
+    expect(isLineOfSightBlocked(origin, target, pillars)).toBe(true)
+  })
+
+  it('ignores a pillar behind the origin or beyond the target (clamped projection)', () => {
+    const origin = { x: 0, y: 0, z: 0 }
+    const target = { x: 10, y: 0, z: 0 }
+    const behindOrigin = [pillar({ x: -5, z: 0, radius: 1 })]
+    const beyondTarget = [pillar({ x: 20, z: 0, radius: 1 })]
+    expect(isLineOfSightBlocked(origin, target, behindOrigin)).toBe(false)
+    expect(isLineOfSightBlocked(origin, target, beyondTarget)).toBe(false)
+  })
+
+  it('checks every pillar in a list, not just the first', () => {
+    const origin = { x: -10, y: 0, z: 0 }
+    const target = { x: 10, y: 0, z: 0 }
+    const pillars = [pillar({ x: -8, z: 5, radius: 1 }), pillar({ x: 0, z: 0, radius: 1 })]
+    expect(isLineOfSightBlocked(origin, target, pillars)).toBe(true)
+  })
+
+  it('is safe from a bubble that would otherwise catch it, once a pillar blocks the line', () => {
+    // Sanity check that this composes the way SoundBubbleManager uses it:
+    // a bubble whose radius has already swallowed the straight-line distance
+    // still shouldn't count as "caught" if a pillar sits between the two.
+    const b = makeBubble({ origin: { x: -10, y: 0, z: 0 }, growthRate: 3 })
+    const player = { x: 10, y: 0, z: 0 }
+    const t = 10 // radius = 30, well past the 20m straight-line distance
+    expect(isPointCaughtByBubble(player, b, t)).toBe(true)
+    const pillars = [pillar({ x: 0, z: 0, radius: 1 })]
+    expect(isLineOfSightBlocked(b.origin, player, pillars)).toBe(true)
   })
 })

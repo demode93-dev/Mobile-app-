@@ -17,6 +17,7 @@ export function SoundBubbleView({ bubble }: SoundBubbleProps) {
   const shellRef = useRef<THREE.Mesh>(null)
   const fillRef = useRef<THREE.Mesh>(null)
   const shellMatRef = useRef<any>(null)
+  const washLightRef = useRef<THREE.PointLight>(null)
   const color = colorForOwner(bubble.ownerId)
 
   useFrame(() => {
@@ -41,6 +42,13 @@ export function SoundBubbleView({ bubble }: SoundBubbleProps) {
     if (shellMatRef.current) {
       shellMatRef.current.uTime = now
       shellMatRef.current.uOpacity = opacity
+    }
+    if (washLightRef.current) {
+      // Sits low near the floor so its glow washes across the reflective
+      // metal as the wavefront grows, rather than lighting the sky.
+      washLightRef.current.position.set(bubble.origin.x, 0.4, bubble.origin.z)
+      washLightRef.current.intensity = opacity * 8
+      washLightRef.current.distance = Math.max(5, radius * 1.6)
     }
   })
 
@@ -69,6 +77,7 @@ export function SoundBubbleView({ bubble }: SoundBubbleProps) {
           toneMapped={false}
         />
       </mesh>
+      <pointLight ref={washLightRef} color={color} intensity={0} decay={2} />
     </group>
   )
 }

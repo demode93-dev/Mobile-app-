@@ -8,6 +8,7 @@ import { colorForOwner } from '../lib/colors'
 import {
   ARENA_HALF_SIZE,
   BOT_COUNT,
+  BOT_SPAWN_MIN_DISTANCE,
   MAX_FRAME_DELTA,
   PLAYER_HITBOX_RADIUS,
   SPRINT_SPEED,
@@ -143,7 +144,10 @@ export function Bots() {
     <>
       {ids.map((id, i) => {
         const angle = (i / ids.length) * Math.PI * 2
-        const r = ARENA_HALF_SIZE * 0.5
+        // Player always spawns at the arena origin, so this radius IS the
+        // bot's distance from the player at round start — must clear
+        // BOT_SPAWN_MIN_DISTANCE with margin to spare.
+        const r = Math.min(BOT_SPAWN_MIN_DISTANCE + 2, ARENA_HALF_SIZE - 2)
         const pos: [number, number, number] = [Math.cos(angle) * r, 0, Math.sin(angle) * r]
         return <Bot key={id} id={id} initialPosition={pos} />
       })}

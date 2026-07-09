@@ -29,6 +29,8 @@ interface GameState {
   bestSurvivalTime: number
   /** Bumped every time the player shouts, so the HUD can retrigger a CSS pulse. */
   shoutFxNonce: number
+  /** True while the player is rooted in place right after shouting. */
+  isRooted: boolean
 
   startGame: () => void
   endGame: (caughtByOwnerId: string) => void
@@ -36,6 +38,7 @@ interface GameState {
 
   setStamina: (value: number) => void
   setShoutCooldownRemaining: (value: number) => void
+  setRooted: (value: boolean) => void
   tickSurvival: (dt: number) => void
 
   spawnBubble: (ownerId: string, origin: Vec3Like, now: number) => void
@@ -52,6 +55,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   caughtByOwnerId: null,
   bestSurvivalTime: readBestTime(),
   shoutFxNonce: 0,
+  isRooted: false,
 
   startGame: () =>
     set({
@@ -61,6 +65,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       shoutCooldownRemaining: 0,
       bubbles: [],
       caughtByOwnerId: null,
+      isRooted: false,
     }),
 
   endGame: (caughtByOwnerId) => {
@@ -76,6 +81,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setStamina: (value) => set({ stamina: Math.min(1, Math.max(0, value)) }),
   setShoutCooldownRemaining: (value) => set({ shoutCooldownRemaining: Math.max(0, value) }),
+  setRooted: (value) => set({ isRooted: value }),
   tickSurvival: (dt) => set((s) => ({ survivalTime: s.survivalTime + dt })),
 
   spawnBubble: (ownerId, origin, now) =>

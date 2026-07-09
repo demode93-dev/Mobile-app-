@@ -19,10 +19,10 @@ export function Arena() {
 
   return (
     <group>
-      {/* Floor */}
+      {/* Floor: dark, highly reflective metal so bubbles/pillars wash light across it */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <circleGeometry args={[ARENA_HALF_SIZE * 1.05, 64]} />
-        <meshStandardMaterial color="#0b0912" roughness={0.35} metalness={0.65} />
+        <meshStandardMaterial color="#0b0912" roughness={0.1} metalness={0.8} envMapIntensity={1.4} />
       </mesh>
 
       {/* Faint concentric rings etched into the floor for depth/scale cues */}

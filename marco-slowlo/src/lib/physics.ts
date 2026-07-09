@@ -92,3 +92,52 @@ export function clearanceFromBubble(point: Vec3Like, bubble: SoundBubble, now: n
   const dist = distance3(point, bubble.origin)
   return dist - radius
 }
+
+export interface CoverPillar {
+  x: number
+  z: number
+  radius: number
+}
+
+/**
+ * Shortest distance from a point to a 2D line segment (XZ plane — pillars
+ * are vertical cylinders, so height doesn't factor into the projection).
+ * Clamping t to [0, 1] means a circle "behind" either endpoint is measured
+ * against that endpoint rather than the infinite line through the segment.
+ */
+function pointToSegmentDistance2D(
+  px: number,
+  pz: number,
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+): number {
+  const abx = bx - ax
+  const abz = bz - az
+  const lengthSq = abx * abx + abz * abz
+  let t = lengthSq > 0 ? ((px - ax) * abx + (pz - az) * abz) / lengthSq : 0
+  t = Math.max(0, Math.min(1, t))
+  const closestX = ax + abx * t
+  const closestZ = az + abz * t
+  return Math.hypot(px - closestX, pz - closestZ)
+}
+
+/**
+ * True if a straight line from `origin` to `target` passes through any
+ * pillar's collision cylinder — an "acoustic shadow" that blocks a shout's
+ * wavefront from reaching whatever's on the far side, regardless of the
+ * wavefront's radius. Ignores Y entirely: pillars are tall enough to
+ * intersect the whole vertical range shouts/hitboxes occupy.
+ */
+export function isLineOfSightBlocked(
+  origin: Vec3Like,
+  target: Vec3Like,
+  pillars: CoverPillar[],
+): boolean {
+  for (const pillar of pillars) {
+    const dist = pointToSegmentDistance2D(pillar.x, pillar.z, origin.x, origin.z, target.x, target.z)
+    if (dist <= pillar.radius) return true
+  }
+  return false
+}

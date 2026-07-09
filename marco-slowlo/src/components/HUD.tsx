@@ -152,6 +152,7 @@ function CaughtOverlay() {
 
 function PlayingHUD() {
   const survivalTime = useGameStore((s) => s.survivalTime)
+  const isRooted = useGameStore((s) => s.isRooted)
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
@@ -159,6 +160,11 @@ function PlayingHUD() {
         <p className="text-2xl font-bold tabular-nums text-white/90 drop-shadow">
           {formatTime(survivalTime)}
         </p>
+        {isRooted && (
+          <p className="mt-1 text-xs font-bold tracking-[0.3em] text-rose-400 animate-pulse">
+            ROOTED
+          </p>
+        )}
       </div>
 
       <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-6">

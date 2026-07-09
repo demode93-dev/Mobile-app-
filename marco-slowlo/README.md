@@ -5,7 +5,8 @@
 A playable 3D browser prototype built with React Three Fiber. Shout, and the
 sound wave becomes a visible, expanding spherical bubble that grows outward
 from where you stood — at exactly walking speed. Stand still and it swallows
-you. Sprint clear before it catches up.
+you. Sprint clear before it catches up. Duck behind a pillar and its "acoustic
+shadow" blocks the wave entirely.
 
 ## Run it
 
@@ -20,28 +21,54 @@ canvas once to grab mouse-look (pointer lock).
 **Controls:** `WASD` move · `SHIFT` sprint (drains stamina) · `SPACE` /
 `click` shout.
 
+## The rules
+
+- Walk speed 3 m/s, sprint 6 m/s, bubble growth rate 3 m/s — sprint is the
+  only way to out-pace your own voice.
+- Shouting roots you in place for 0.5s (you can still turn/look around),
+  with a 1.0s grace period on your own fresh bubble so the root doesn't turn
+  every shout into an automatic loss — the grace window is sized to exactly
+  cover the gap the root creates, assuming you sprint the instant it ends.
+- The first second of a round is fully invulnerable, so a bot can't catch
+  you before you've even gotten your bearings.
+- Bots spawn at least 15m away from your start point.
+- ~40 scattered pillars provide "acoustic shadow": if a pillar sits on the
+  straight line between a bubble's origin and you, that bubble can't catch
+  you no matter how big it's grown.
+
 ## How the mechanic works
 
 - `src/lib/physics.ts` — pure, framework-free spatial math: a bubble's
-  radius at time `t`, and the point-in-sphere "caught" test. Fully covered
-  by `physics.test.ts` (`npx vitest run`), including the origin-standing
-  edge case and a regression test documenting why the player's own shout
-  must NOT be checked with hitbox padding (see below).
+  radius at time `t`, the point-in-sphere "caught" test, and the
+  segment-vs-circle "acoustic shadow" line-of-sight test for cover pillars.
+  Fully covered by `physics.test.ts` (`npx vitest run`), including the
+  origin-standing edge case and a regression test documenting why the
+  player's own shout must NOT be checked with hitbox padding (see below).
 - `src/lib/world.ts` — a single shared `gameClock`, advanced by the same
   clamped per-frame delta every moving system uses. Bubble radius and actor
   movement must share one timeline, or a frame-rate hitch lets the wavefront
   and the player drift out of sync.
+- `src/lib/pillars.ts` — generates the cover pillar layout once as plain
+  data; both the InstancedMesh renderer and the line-of-sight check read the
+  same array, so visuals and collision can never disagree about placement.
 - `src/components/SoundBubbleManager.tsx` — spawns/expires bubbles and runs
-  the live collision check against the player each frame.
+  the live collision check (round-start grace, self-bubble grace, cover)
+  against the player each frame.
 - `src/components/PlayerController.tsx` — pointer-lock third-person camera,
-  WASD-relative-to-camera movement, stamina-gated sprint, shout trigger.
+  WASD-relative-to-camera movement, stamina-gated sprint, shout trigger with
+  the post-shout root.
 - `src/components/Bots.tsx` — wandering NPCs that shout on their own timer
   and flee nearby bubbles, proving the bubble physics generalize to more
   than one simultaneous shouter (the part that matters once real networking
   gets bolted on — this prototype has no netcode, it's single-session).
+- `src/components/CoverPillars.tsx` — the ~40 cover pillars as a single
+  InstancedMesh draw call.
 - `src/shaders/SoundBubbleMaterial.ts` — the fresnel-rim "energy shell"
-  shader (procedural ripple, no textures) that bloom picks up as glowing
-  kinetic energy.
+  shader (procedural ripple, no textures) that bloom picks up as glowing hot
+  -pink/cyan kinetic energy.
+- `src/components/Effects.tsx` — SSAO (contact shadows under the pillars) +
+  Bloom + vignette + grain, in that order so bloom lights the
+  already-shadowed result rather than washing it out.
 
 ### A trap worth knowing about
 
@@ -52,4 +79,7 @@ mandatory stretch right after every shout — even at full sprint — because a
 constant offset dominates while both distance and radius are still small.
 The game therefore checks the player's own bubble with a bare point/sphere
 test (no padding); see the comment in `SoundBubbleManager.tsx` and the
-regression test in `physics.test.ts`.
+regression test in `physics.test.ts`. The post-shout root reintroduces a
+similar gap deliberately (for game feel), which is why it needs its own
+explicit, time-boxed grace period rather than relying on the padding-free
+check alone.
