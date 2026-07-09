@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { SoundBubble, Vec3Like } from '../lib/physics'
 import { gameClock } from '../lib/world'
+import { regenerateCoverPillars } from '../lib/pillars'
 import {
   BOT_ID,
   BUBBLE_MAX_RADIUS,
@@ -9,8 +10,9 @@ import {
   TAG_IMMUNITY_DURATION,
   WALK_SPEED,
 } from '../lib/constants'
+import { LEVELS } from '../lib/levels'
 
-export type GamePhase = 'start' | 'playing' | 'gameOver'
+export type GamePhase = 'start' | 'playing' | 'levelComplete' | 'gameOver'
 
 let bubbleSeq = 0
 export function nextBubbleId(): string {
@@ -18,26 +20,41 @@ export function nextBubbleId(): string {
   return `bubble-${bubbleSeq}-${Date.now()}`
 }
 
-interface GameState {
+/** Fields reset at the start of every round, win-and-advance or fresh start alike. */
+interface RoundReset {
   phase: GamePhase
   matchTimeRemaining: number
-  /** gameClock.elapsed at the moment the current match began — gameClock
-   * itself is a continuously-running session clock (never resets), so
-   * "time since match start" must be measured relative to this, not to 0. */
   matchStartTime: number
-  /** Id of whoever is currently "It" (the hunter): 'player' or BOT_ID. */
   currentItId: string
-  /** No tag can land before this gameClock time — see TAG_IMMUNITY_DURATION. */
   tagImmuneUntil: number
   stamina: number
   shoutCooldownRemaining: number
   bubbles: SoundBubble[]
+  isRooted: boolean
+}
+
+function freshRound(): RoundReset {
+  return {
+    phase: 'playing',
+    matchTimeRemaining: MATCH_DURATION,
+    matchStartTime: gameClock.elapsed,
+    currentItId: BOT_ID, // the Bot always starts as It
+    tagImmuneUntil: 0,
+    stamina: 1,
+    shoutCooldownRemaining: 0,
+    bubbles: [],
+    isRooted: false,
+  }
+}
+
+interface GameState extends RoundReset {
+  /** 0-based index into LEVELS — "Floor 1" is levelIndex 0. */
+  levelIndex: number
   /** Bumped every time the player shouts, so the HUD can retrigger a CSS pulse. */
   shoutFxNonce: number
-  /** True while the player is rooted in place right after shouting. */
-  isRooted: boolean
 
   startMatch: () => void
+  advanceLevel: () => void
 
   setStamina: (value: number) => void
   setShoutCooldownRemaining: (value: number) => void
@@ -60,18 +77,18 @@ export const useGameStore = create<GameState>((set) => ({
   bubbles: [],
   shoutFxNonce: 0,
   isRooted: false,
+  levelIndex: 0,
 
-  startMatch: () =>
-    set({
-      phase: 'playing',
-      matchTimeRemaining: MATCH_DURATION,
-      matchStartTime: gameClock.elapsed,
-      currentItId: BOT_ID, // the Bot always starts as It
-      tagImmuneUntil: 0,
-      stamina: 1,
-      shoutCooldownRemaining: 0,
-      bubbles: [],
-      isRooted: false,
+  startMatch: () => {
+    regenerateCoverPillars(0)
+    set({ ...freshRound(), levelIndex: 0 })
+  },
+
+  advanceLevel: () =>
+    set((s) => {
+      const nextLevelIndex = Math.min(s.levelIndex + 1, LEVELS.length - 1)
+      regenerateCoverPillars(nextLevelIndex)
+      return { ...freshRound(), levelIndex: nextLevelIndex }
     }),
 
   setStamina: (value) => set({ stamina: Math.min(1, Math.max(0, value)) }),
@@ -83,7 +100,11 @@ export const useGameStore = create<GameState>((set) => ({
       if (s.phase !== 'playing') return s
       const next = s.matchTimeRemaining - dt
       if (next <= 0) {
-        return { matchTimeRemaining: 0, phase: 'gameOver' }
+        // Whoever is NOT "It" when the clock hits 0 made it through the
+        // floor. Still hunting (or still stuck as It) at the buzzer means
+        // the Bot evaded you the whole match — that's a loss.
+        const playerWon = s.currentItId === BOT_ID
+        return { matchTimeRemaining: 0, phase: playerWon ? 'levelComplete' : 'gameOver' }
       }
       return { matchTimeRemaining: next }
     }),

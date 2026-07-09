@@ -7,10 +7,13 @@ import { SoundBubbleManager } from './SoundBubbleManager'
 import { Bots } from './Bots'
 import { CoverPillars } from './CoverPillars'
 import { Effects } from './Effects'
+import { useGameStore } from '../store/gameStore'
 
 /** Everything that lives inside the <Canvas>. Kept separate from App.tsx so
  * the HUD (plain DOM/Tailwind) never re-renders alongside R3F's render loop. */
 export function Experience() {
+  const levelIndex = useGameStore((s) => s.levelIndex)
+
   return (
     <>
       {/* Must mount first: every other system reads gameClock.elapsed this same frame. */}
@@ -56,9 +59,17 @@ export function Experience() {
       />
 
       <Arena />
-      <CoverPillars />
+      {/* Keyed on levelIndex so advancing a floor fully unmounts/remounts
+       * these — proper disposal of the previous maze's GPU buffers and a
+       * clean re-init of the Bot's refs, rather than trying to patch a
+       * live InstancedMesh down to a different instance count. Distinct
+       * key prefixes matter: they're siblings in the same fragment, and
+       * two different elements sharing a bare numeric key confuses React's
+       * reconciler (it warns "two children with the same key" and can
+       * leave the old CoverPillars instance's GPU buffers un-disposed). */}
+      <CoverPillars key={`pillars-${levelIndex}`} />
       <PlayerController />
-      <Bots />
+      <Bots key={`bots-${levelIndex}`} />
       <SoundBubbleManager />
 
       <Effects />

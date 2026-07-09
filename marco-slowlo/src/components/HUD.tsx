@@ -1,6 +1,7 @@
 import { useGameStore } from '../store/gameStore'
 import { unlockAudio } from '../lib/audio'
 import { BOT_ID } from '../lib/constants'
+import { getLevel, LEVELS } from '../lib/levels'
 import { TouchControls } from './TouchControls'
 
 function formatCountdown(seconds: number): string {
@@ -59,6 +60,15 @@ function ShoutPulse() {
   )
 }
 
+function FloorLabel() {
+  const levelIndex = useGameStore((s) => s.levelIndex)
+  const level = getLevel(levelIndex)
+
+  return (
+    <p className="text-[11px] font-bold tracking-[0.3em] text-white/40">{level.name.toUpperCase()}</p>
+  )
+}
+
 function RoleBanner() {
   const currentItId = useGameStore((s) => s.currentItId)
   const isHunting = currentItId === 'player'
@@ -106,7 +116,8 @@ function StartOverlay() {
           <p className="text-white/50">
             The Bot starts as "It." Whoever is It must catch the other in their bubble to pass the
             tag on — a hit through a pillar's shadow doesn't count. Survive as the target until the
-            60-second clock runs out to win.
+            60-second clock runs out to clear the floor and take the elevator up — each one packs
+            the maze tighter and speeds up the Bot. Get caught and it's back to Floor 1.
           </p>
         </div>
 
@@ -121,9 +132,54 @@ function StartOverlay() {
   )
 }
 
+function LevelCompleteOverlay() {
+  const advanceLevel = useGameStore((s) => s.advanceLevel)
+  const levelIndex = useGameStore((s) => s.levelIndex)
+  const clearedLevel = getLevel(levelIndex)
+  const isLastFloor = levelIndex >= LEVELS.length - 1
+  const nextLevel = getLevel(Math.min(levelIndex + 1, LEVELS.length - 1))
+
+  function handleAdvance() {
+    unlockAudio()
+    advanceLevel()
+    requestAnimationFrame(() => {
+      document.querySelector('canvas')?.requestPointerLock()
+    })
+  }
+
+  return (
+    <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+      <div className="max-w-md rounded-2xl border border-white/10 bg-[#0b0912]/90 p-8 text-center shadow-[0_0_60px_rgba(16,185,129,0.25)]">
+        <h2 className="text-3xl font-black tracking-tight text-emerald-400">FLOOR CLEARED</h2>
+        <p className="mt-2 text-sm text-white/60">
+          You evaded the Bot for the whole of {clearedLevel.name} — time's up, you win this floor.
+        </p>
+
+        <div className="mt-6 flex items-center justify-center gap-3 text-sm text-white/70">
+          <span
+            className="h-3 w-3 rounded-full ring-1 ring-white/30"
+            style={{ backgroundColor: nextLevel.crateColor }}
+          />
+          <span>
+            {isLastFloor ? `${nextLevel.name} — maximum difficulty` : `Next up: ${nextLevel.name}`}
+          </span>
+        </div>
+
+        <button
+          onClick={handleAdvance}
+          className="mt-6 w-full rounded-lg bg-emerald-500 px-6 py-3 font-semibold text-black transition hover:bg-emerald-400 active:scale-[0.98]"
+        >
+          Take Elevator to Next Floor
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function GameOverOverlay() {
   const startMatch = useGameStore((s) => s.startMatch)
   const currentItId = useGameStore((s) => s.currentItId)
+  const levelIndex = useGameStore((s) => s.levelIndex)
   const playerWon = currentItId === BOT_ID // whoever is NOT "It" when the clock hits 0 wins
 
   function handleRestart() {
@@ -145,6 +201,9 @@ function GameOverOverlay() {
             ? "Time ran out with the Bot still hunting — you evaded the whole match."
             : "Time ran out while you were still hunting — the Bot evaded you."}
         </p>
+        {!playerWon && (
+          <p className="mt-1 text-xs text-white/40">Made it to {getLevel(levelIndex).name}. Back to Floor 1.</p>
+        )}
 
         <button
           onClick={handleRestart}
@@ -164,6 +223,7 @@ function PlayingHUD() {
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
       <div className="absolute left-1/2 top-6 -translate-x-1/2 text-center">
+        <FloorLabel />
         <p className="text-4xl font-black tabular-nums text-white/95 drop-shadow">
           {formatCountdown(matchTimeRemaining)}
         </p>
@@ -194,6 +254,7 @@ export function HUD() {
     <div className="absolute inset-0 touch-none select-none">
       <PlayingHUD />
       {phase === 'start' && <StartOverlay />}
+      {phase === 'levelComplete' && <LevelCompleteOverlay />}
       {phase === 'gameOver' && <GameOverOverlay />}
     </div>
   )

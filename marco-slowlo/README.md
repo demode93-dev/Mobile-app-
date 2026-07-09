@@ -8,7 +8,9 @@ of tag. Whoever is "It" must shout — a visible, expanding deep-crimson
 sound bubble growing outward from where they stood, at exactly walking
 speed — and catch the other person in it to pass the tag on. Duck behind
 a containment pillar and its "acoustic shadow" blocks the hit entirely.
-Survive as the target until the clock runs out to win.
+Survive as the target until the clock runs out to clear the floor and
+ride the elevator to the next one — each floor packs the crates tighter
+and speeds up the Bot. Get caught and it's back to Floor 1.
 
 ## Run it
 
@@ -34,9 +36,18 @@ limitation, not an oversight.
 
 ## The rules
 
-- **Start / Playing / Game Over.** A match is 60 seconds. The Bot always
-  starts as "It." When the clock hits 0, whoever is NOT "It" at that
-  instant wins.
+- **Start / Playing / Level Complete / Game Over.** A round is 60
+  seconds. The Bot always starts as "It." When the clock hits 0, whoever
+  is NOT "It" at that instant wins the floor — the player only wins the
+  floor if the Bot was "It" when time expired; if the player was "It" (was
+  hunting) when time runs out, they lose instead.
+- **Floors get harder.** Clearing a floor shows a "FLOOR CLEARED" screen
+  with a **Take Elevator to Next Floor** button. Clicking it advances to
+  the next `LevelConfig` (`src/lib/levels.ts`): the crate color changes
+  (Floor 1 blue → Floor 2 warning yellow → Floor 3 hazard orange), the
+  maze gets denser (crates spawn closer together, tighter corridors), and
+  the Bot moves faster. Losing at any floor drops the player straight back
+  to Floor 1 on the next "Play Again."
 - **Tagging.** Only a bubble owned by the current "It" can tag anyone —
   the bubble's own owner is never a valid target, so there's no "self-tag"
   case to worry about. Land a hit on the other party (not blocked by
@@ -88,10 +99,25 @@ limitation, not an oversight.
 - `src/components/Bots.tsx` — the one Bot, reading `currentItId` fresh
   every frame to decide whether to hunt (chase + shout in range) or evade
   (flee the hunter's bubble, else head for `findHidingSpot`).
-- `src/lib/pillars.ts` / `src/components/CoverPillars.tsx` — the ~40 cover
-  pillars as white containment-crate columns, generated once as plain data
-  so the InstancedMesh renderer, the line-of-sight check, and the hiding-
-  spot search all agree on where they are.
+- `src/lib/levels.ts` — the `LEVELS` array: one `LevelConfig` per floor
+  (crate color/accent, crate radius, a `spacingMultiplier` that shrinks
+  minimum crate spacing to make the maze tighter, and a
+  `botSpeedMultiplier`). `getLevel(index)` clamps out-of-range indices.
+- `src/lib/pillars.ts` / `src/components/CoverPillars.tsx` — cover pillars
+  as containment-crate columns. `COVER_PILLARS` is a mutable, live-bound
+  module export; `regenerateCoverPillars(levelIndex)` reassigns it from
+  the current floor's `LevelConfig`, and every consumer (line-of-sight
+  check, hiding-spot search, the InstancedMesh renderer) picks up the new
+  array automatically via the ES module binding — no prop drilling.
+  `CoverPillars` and `Bots` are both mounted with a per-floor `key` in
+  `Experience.tsx` (`pillars-${levelIndex}` / `bots-${levelIndex}`) so
+  advancing a floor fully unmounts the old InstancedMesh (proper GPU
+  buffer disposal) and mounts a fresh one, rather than trying to patch a
+  live instance down to a different count. The two keys must stay
+  distinct — an earlier version keyed both siblings with the bare
+  `levelIndex`, which made React see two different children sharing one
+  key; the reconciler's resulting confusion left a stale, disposed-in-name-
+  only Floor 1 pillar instance still rendering alongside Floor 2's.
 - `src/components/Effects.tsx` — just SSAO, for contact shadows under the
   pillars/characters in the bright, clinical render.
 - `src/lib/colors.ts` — `colorForOwner` is identity-only (visor/body trim);

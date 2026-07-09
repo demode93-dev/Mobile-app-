@@ -77,13 +77,8 @@ export const MATCH_DURATION = 60
  */
 export const BOT_HUNT_AGGRO_RANGE = 10
 
-/** Number of scattered cover pillars generated across the floor. */
-export const COVER_PILLAR_COUNT = 42
-
-/** Radius of each cover pillar's collision cylinder, in meters. */
-export const COVER_PILLAR_RADIUS = 0.9
-
-/** Visual height of each cover pillar, in meters. */
+/** Visual height of each cover pillar, in meters — constant across floors;
+ * count/radius/spacing are per-level now (see lib/levels.ts). */
 export const COVER_PILLAR_HEIGHT = 5.5
 
 /** Keep-out radius around the arena center so pillars never spawn on the player's spawn point. */

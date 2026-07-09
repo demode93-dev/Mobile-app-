@@ -8,6 +8,7 @@ import { clearanceFromBubble, findHidingSpot, isLineOfSightBlocked } from '../li
 import { colorForOwner } from '../lib/colors'
 import { playShout, setAudioMuffled, SHOUT_SOUND_URL } from '../lib/audio'
 import { COVER_PILLARS } from '../lib/pillars'
+import { getLevel } from '../lib/levels'
 import {
   ARENA_HALF_SIZE,
   AUDIO_REFERENCE_DISTANCE,
@@ -22,8 +23,9 @@ import {
   WALK_SPEED,
 } from '../lib/constants'
 
-const BOT_WALK_SPEED = WALK_SPEED * 0.75
-const BOT_EVADE_SPEED = SPRINT_SPEED * 0.85
+// Base speeds before the current floor's botSpeedMultiplier is applied.
+const BASE_BOT_WALK_SPEED = WALK_SPEED * 0.75
+const BASE_BOT_EVADE_SPEED = SPRINT_SPEED * 0.85
 const BOT_EVADE_TRIGGER_CLEARANCE = 3.2
 const HIDE_SPOT_MARGIN = 1.5
 const HIDE_SPOT_REACHED_DIST = 0.5
@@ -53,7 +55,7 @@ function Bot({ id, initialPosition }: { id: string; initialPosition: [number, nu
   useFrame((_state, rawDelta) => {
     const delta = Math.min(rawDelta, MAX_FRAME_DELTA)
     const now = gameClock.elapsed
-    const { phase, currentItId, bubbles, spawnBubble } = useGameStore.getState()
+    const { phase, currentItId, levelIndex, bubbles, spawnBubble } = useGameStore.getState()
 
     if (phase !== 'playing') {
       wasPlayingRef.current = false
@@ -70,10 +72,13 @@ function Bot({ id, initialPosition }: { id: string; initialPosition: [number, nu
 
     const isHunting = currentItId === id
     const isRooted = now < rootedUntilRef.current
+    const speedMultiplier = getLevel(levelIndex).botSpeedMultiplier
+    const botWalkSpeed = BASE_BOT_WALK_SPEED * speedMultiplier
+    const botEvadeSpeed = BASE_BOT_EVADE_SPEED * speedMultiplier
 
     let moveX = 0
     let moveZ = 0
-    let speed = BOT_WALK_SPEED
+    let speed = botWalkSpeed
 
     if (isHunting) {
       const dx = playerTransform.position.x - transform.position.x
@@ -109,7 +114,7 @@ function Bot({ id, initialPosition }: { id: string; initialPosition: [number, nu
         const len = Math.hypot(awayX, awayZ) || 1
         moveX = awayX / len
         moveZ = awayZ / len
-        speed = BOT_EVADE_SPEED
+        speed = botEvadeSpeed
       } else {
         if (now >= hideTargetRefreshAtRef.current) {
           const spot = findHidingSpot(transform.position, playerTransform.position, COVER_PILLARS, HIDE_SPOT_MARGIN)
