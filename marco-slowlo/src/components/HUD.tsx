@@ -1,6 +1,7 @@
 import { useGameStore } from '../store/gameStore'
 import { unlockAudio } from '../lib/audio'
 import { BOT_ID } from '../lib/constants'
+import { TouchControls } from './TouchControls'
 
 function formatCountdown(seconds: number): string {
   const whole = Math.max(0, Math.ceil(seconds))
@@ -172,13 +173,16 @@ function PlayingHUD() {
         )}
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-6">
+      {/* Lifted well clear of the bottom edge on purpose — that's where the
+       * touch joystick/shout button live, and they need the room. */}
+      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between px-6 pb-32 sm:pb-6">
         <StaminaBar />
         <ShoutIndicator />
       </div>
 
       <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/70" />
       <ShoutPulse />
+      <TouchControls />
     </div>
   )
 }
@@ -187,7 +191,7 @@ export function HUD() {
   const phase = useGameStore((s) => s.phase)
 
   return (
-    <div className="absolute inset-0">
+    <div className="absolute inset-0 touch-none select-none">
       <PlayingHUD />
       {phase === 'start' && <StartOverlay />}
       {phase === 'gameOver' && <GameOverOverlay />}

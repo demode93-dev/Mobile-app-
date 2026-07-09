@@ -20,8 +20,17 @@ npm run dev
 Open the printed localhost URL, click **Start Match**, then click the
 canvas once to grab mouse-look (pointer lock).
 
-**Controls:** `WASD` move · `SHIFT` sprint (drains stamina) · `SPACE` /
-`click` shout.
+**Controls (desktop):** `WASD` move · `SHIFT` sprint (drains stamina) ·
+`SPACE` / `click` shout.
+
+**Controls (touch):** drag anywhere in the bottom-left to move with a
+floating joystick — push it to the edge to sprint, same stamina cost as
+Shift — and tap **SHOUT** bottom-right, wired to the identical trigger
+Space uses. Both work as independent touches at once (they track separate
+pointer ids), so you can run and shout in the same motion. There's no
+touch look-control yet; the camera trails the player from a fixed
+world-space angle rather than one you can spin around, which is a known
+limitation, not an oversight.
 
 ## The rules
 
@@ -88,6 +97,21 @@ canvas once to grab mouse-look (pointer lock).
 - `src/lib/colors.ts` — `colorForOwner` is identity-only (visor/body trim);
   every bubble uses the single shared `BUBBLE_THREAT_COLOR` regardless of
   who shouted, so the danger reads as one unmistakable shape.
+- `src/lib/input.ts` / `src/components/TouchControls.tsx` — the touch
+  joystick and SHOUT button live entirely outside the Canvas as plain DOM,
+  and bridge into PlayerController through a shared mutable
+  `touchMoveVector` (added straight into the same forward/right axes the
+  keyboard uses) and a `shoutTrigger` ref that PlayerController points at
+  its real `triggerShout` — the button calls that exact function, not a
+  copy of it. Built on the Pointer Events API (not raw touch/mouse
+  events), so each control tracks its own pointer id independently and a
+  thumb on the joystick can't steal events from a thumb on SHOUT.
+- `src/components/ResponsiveCamera.tsx` — a fixed vertical FOV looks right
+  in landscape but turns into a tunnel in portrait (horizontal FOV shrinks
+  with aspect ratio even though vertical doesn't change). This widens the
+  vertical FOV as the viewport narrows (the standard "Hor+" fix),
+  preserving roughly the same horizontal view, clamped so extreme
+  portrait ratios don't fisheye into nonsense.
 
 ### A trap worth knowing about
 

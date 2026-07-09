@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { useGameStore } from '../store/gameStore'
 import { gameClock, playerTransform } from '../lib/world'
 import { playShout, SHOUT_SOUND_URL, unlockAudio } from '../lib/audio'
+import { shoutTrigger, touchMoveVector } from '../lib/input'
 import {
   ARENA_HALF_SIZE,
   AUDIO_REFERENCE_DISTANCE,
@@ -15,6 +16,7 @@ import {
   STAMINA_MAX,
   STAMINA_REGEN_TIME,
   STAMINA_SPRINT_MIN,
+  TOUCH_SPRINT_DEFLECTION,
   TURN_SMOOTHING,
   WALK_SPEED,
 } from '../lib/constants'
@@ -69,6 +71,11 @@ export function PlayerController() {
       rootedUntilRef.current = gameClock.elapsed + SHOUT_ROOT_DURATION
       playShout(audioRef.current)
     }
+
+    // The on-screen SHOUT button (TouchControls.tsx, plain DOM outside the
+    // Canvas) calls this exact function through the shared ref — not a
+    // reimplementation of it.
+    shoutTrigger.current = triggerShout
 
     const canvas = gl.domElement
 
@@ -212,9 +219,12 @@ export function PlayerController() {
       }
 
       const { forward, back, left, right, sprint } = keys.current
-      const inputForward = (forward ? 1 : 0) - (back ? 1 : 0)
-      const inputRight = (right ? 1 : 0) - (left ? 1 : 0)
-      const hasInput = inputForward !== 0 || inputRight !== 0
+      // Keyboard and the touch joystick just add into the same input axes —
+      // whichever the player is using (or both at once), the rest of the
+      // movement/root/stamina logic below doesn't need to know which.
+      const inputForward = (forward ? 1 : 0) - (back ? 1 : 0) + touchMoveVector.y
+      const inputRight = (right ? 1 : 0) - (left ? 1 : 0) + touchMoveVector.x
+      const hasInput = Math.abs(inputForward) > 0.0001 || Math.abs(inputRight) > 0.0001
 
       let dx = inputForward * forwardX + inputRight * rightX
       let dz = inputForward * forwardZ + inputRight * rightZ
@@ -224,7 +234,11 @@ export function PlayerController() {
         dz /= len
       }
 
-      const wantsSprint = !isRooted && sprint && hasInput && stamina > STAMINA_SPRINT_MIN
+      // No separate sprint button on touch: shoving the joystick to near
+      // full deflection sprints instead, same as holding Shift.
+      const touchDeflection = Math.hypot(touchMoveVector.x, touchMoveVector.y)
+      const sprintHeld = sprint || touchDeflection >= TOUCH_SPRINT_DEFLECTION
+      const wantsSprint = !isRooted && sprintHeld && hasInput && stamina > STAMINA_SPRINT_MIN
       const speed = wantsSprint ? SPRINT_SPEED : WALK_SPEED
 
       if (wantsSprint) {

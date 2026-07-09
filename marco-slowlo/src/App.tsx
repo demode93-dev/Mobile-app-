@@ -5,7 +5,7 @@ import { HUD } from './components/HUD'
 
 export default function App() {
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-black">
+    <div className="relative h-screen w-screen touch-none select-none overflow-hidden bg-black">
       <Canvas
         shadows
         camera={{ fov: 62, near: 0.1, far: 120, position: [0, 3, 6.5] }}

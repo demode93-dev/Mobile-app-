@@ -15,10 +15,18 @@ body,
   overflow: hidden;
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  /* Critical for mobile: without this, frantic tapping/dragging on the
+   * touch controls can trigger the browser's own scroll/zoom/text-select
+   * gestures instead of reaching our pointer handlers. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 canvas {
   touch-action: none;
+  user-select: none;
   outline: none;
 }
 

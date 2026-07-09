@@ -2,6 +2,7 @@ import { Environment, Lightformer } from '@react-three/drei'
 import { Arena, ArenaFog } from './Arena'
 import { GameClockDriver } from './GameClockDriver'
 import { PlayerController } from './PlayerController'
+import { ResponsiveCamera } from './ResponsiveCamera'
 import { SoundBubbleManager } from './SoundBubbleManager'
 import { Bots } from './Bots'
 import { CoverPillars } from './CoverPillars'
@@ -14,6 +15,7 @@ export function Experience() {
     <>
       {/* Must mount first: every other system reads gameClock.elapsed this same frame. */}
       <GameClockDriver />
+      <ResponsiveCamera />
 
       <ArenaFog />
       <color attach="background" args={['#f2f4f8']} />

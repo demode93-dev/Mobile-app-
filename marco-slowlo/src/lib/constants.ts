@@ -9,6 +9,14 @@ export const SPRINT_SPEED = 6.0
 /** How fast the player/camera turns to face input direction, in 1/s (lerp rate). */
 export const TURN_SMOOTHING = 12
 
+/**
+ * There's no separate sprint button on touch — pushing the joystick past
+ * this fraction of its max radius sprints instead, the common mobile
+ * convention ("push harder to run"). Still gated by the same stamina rule
+ * as Shift on keyboard; this only decides intent.
+ */
+export const TOUCH_SPRINT_DEFLECTION = 0.9
+
 /** Radius of the player's own collision hitbox, in meters. */
 export const PLAYER_HITBOX_RADIUS = 0.45
 
