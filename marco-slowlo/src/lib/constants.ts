@@ -70,6 +70,9 @@ export const COVER_PILLAR_HEIGHT = 5.5
 /** Keep-out radius around the arena center so pillars never spawn on the player's spawn point. */
 export const COVER_PILLAR_CLEAR_RADIUS = 4
 
+/** PositionalAudio reference distance, in meters — volume halves roughly every this many meters. */
+export const AUDIO_REFERENCE_DISTANCE = 5
+
 /**
  * Hard cap on the simulated delta applied in any single frame, in seconds.
  * Every system (player movement, bot movement, and the shared game clock

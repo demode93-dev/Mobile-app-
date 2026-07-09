@@ -1,4 +1,5 @@
 import { useGameStore } from '../store/gameStore'
+import { unlockAudio } from '../lib/audio'
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -60,6 +61,7 @@ function ReadyOverlay() {
   const bestSurvivalTime = useGameStore((s) => s.bestSurvivalTime)
 
   function handleStart() {
+    unlockAudio()
     startGame()
     requestAnimationFrame(() => {
       document.querySelector('canvas')?.requestPointerLock()
@@ -120,6 +122,7 @@ function CaughtOverlay() {
       : `${caughtByOwnerId}'s shout swallowed you.`
 
   function handleRestart() {
+    unlockAudio()
     startGame()
     requestAnimationFrame(() => {
       document.querySelector('canvas')?.requestPointerLock()

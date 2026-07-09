@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { PositionalAudio } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '../store/gameStore'
-import { gameClock, getBotTransform } from '../lib/world'
-import { clearanceFromBubble } from '../lib/physics'
+import { gameClock, getBotTransform, playerTransform } from '../lib/world'
+import { clearanceFromBubble, isLineOfSightBlocked } from '../lib/physics'
 import { colorForOwner } from '../lib/colors'
+import { playShout, setAudioMuffled, SHOUT_SOUND_URL } from '../lib/audio'
+import { COVER_PILLARS } from '../lib/pillars'
 import {
   ARENA_HALF_SIZE,
+  AUDIO_REFERENCE_DISTANCE,
   BOT_COUNT,
   BOT_SPAWN_MIN_DISTANCE,
   MAX_FRAME_DELTA,
@@ -38,6 +42,8 @@ function Bot({ id, initialPosition }: BotProps) {
   const sessionTimeRef = useRef(0)
   const nextShoutAtRef = useRef(THREE.MathUtils.randFloat(BOT_SHOUT_INTERVAL_MIN, BOT_SHOUT_INTERVAL_MAX))
   const wasPlayingRef = useRef(false)
+  const audioRef = useRef<THREE.PositionalAudio>(null)
+  const wasMuffledRef = useRef(false)
   const color = useMemo(() => colorForOwner(id), [id])
 
   useEffect(() => {
@@ -119,6 +125,17 @@ function Bot({ id, initialPosition }: BotProps) {
       spawnBubble(id, transform.position, now)
       nextShoutAtRef.current =
         sessionTimeRef.current + THREE.MathUtils.randFloat(BOT_SHOUT_INTERVAL_MIN, BOT_SHOUT_INTERVAL_MAX)
+      playShout(audioRef.current)
+    }
+
+    // Acoustic shadow: if a pillar sits between this bot and the player,
+    // muffle its voice with a lowpass filter; restore full frequency the
+    // instant the player steps back into the clear. Only touches the audio
+    // graph on state changes, not every frame.
+    const isMuffled = isLineOfSightBlocked(transform.position, playerTransform.position, COVER_PILLARS)
+    if (isMuffled !== wasMuffledRef.current) {
+      wasMuffledRef.current = isMuffled
+      setAudioMuffled(audioRef.current, isMuffled)
     }
 
     if (bodyRef.current) {
@@ -141,6 +158,7 @@ function Bot({ id, initialPosition }: BotProps) {
         <meshStandardMaterial color={color} emissive={color} emissiveIntensity={4} toneMapped={false} />
       </mesh>
       <pointLight position={[0, 1.4, -0.3]} color={color} intensity={1.1} distance={3.5} decay={2} />
+      <PositionalAudio ref={audioRef} url={SHOUT_SOUND_URL} distance={AUDIO_REFERENCE_DISTANCE} loop={false} />
     </group>
   )
 }

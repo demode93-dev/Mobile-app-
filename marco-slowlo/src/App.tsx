@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Experience } from './components/Experience'
 import { HUD } from './components/HUD'
@@ -11,7 +12,10 @@ export default function App() {
         gl={{ antialias: false, powerPreference: 'high-performance' }}
         dpr={[1, 1.75]}
       >
-        <Experience />
+        {/* PositionalAudio loads its buffer via useLoader, which suspends. */}
+        <Suspense fallback={null}>
+          <Experience />
+        </Suspense>
       </Canvas>
       <HUD />
     </div>

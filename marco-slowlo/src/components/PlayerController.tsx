@@ -1,10 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
+import { PositionalAudio } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '../store/gameStore'
 import { gameClock, playerTransform } from '../lib/world'
+import { playShout, SHOUT_SOUND_URL, unlockAudio } from '../lib/audio'
 import {
   ARENA_HALF_SIZE,
+  AUDIO_REFERENCE_DISTANCE,
   MAX_FRAME_DELTA,
   PLAYER_HITBOX_RADIUS,
   SHOUT_ROOT_DURATION,
@@ -55,6 +58,7 @@ export function PlayerController() {
   const wasPlayingRef = useRef(false)
   const rootedUntilRef = useRef(0)
   const wasRootedRef = useRef(false)
+  const audioRef = useRef<THREE.PositionalAudio>(null)
 
   useEffect(() => {
     function triggerShout() {
@@ -62,11 +66,13 @@ export function PlayerController() {
       if (phase !== 'playing' || shoutCooldownRemaining > 0) return
       spawnBubble('player', playerTransform.position, gameClock.elapsed)
       rootedUntilRef.current = gameClock.elapsed + SHOUT_ROOT_DURATION
+      playShout(audioRef.current)
     }
 
     const canvas = gl.domElement
 
     function onKeyDown(e: KeyboardEvent) {
+      unlockAudio()
       switch (e.code) {
         case 'KeyW':
         case 'ArrowUp':
@@ -131,6 +137,7 @@ export function PlayerController() {
       isLockedRef.current = document.pointerLockElement === canvas
     }
     function onMouseDown() {
+      unlockAudio()
       const { phase } = useGameStore.getState()
       if (phase === 'caught') return
       if (document.pointerLockElement !== canvas) {
@@ -280,6 +287,7 @@ export function PlayerController() {
         <meshStandardMaterial color="#22e0ff" emissive="#22e0ff" emissiveIntensity={4.5} toneMapped={false} />
       </mesh>
       <pointLight position={[0, 1.4, -0.3]} color="#22e0ff" intensity={1.6} distance={4.5} decay={2} />
+      <PositionalAudio ref={audioRef} url={SHOUT_SOUND_URL} distance={AUDIO_REFERENCE_DISTANCE} loop={false} />
     </group>
   )
 }
