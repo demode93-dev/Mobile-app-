@@ -3,9 +3,9 @@ import { extend } from '@react-three/fiber'
 import * as THREE from 'three'
 
 /**
- * Fresnel-rim "energy shell" shader for the expanding sound bubble. Uses a
- * cheap sum-of-sines procedural ripple instead of a noise texture lookup, so
- * the whole effect is a handful of ALU ops per fragment.
+ * Fresnel-rim "dark threat" shell shader for the expanding sound bubble.
+ * Uses a cheap sum-of-sines procedural ripple instead of a noise texture
+ * lookup, so the whole effect is a handful of ALU ops per fragment.
  */
 export const SoundBubbleMaterial = shaderMaterial(
   {
@@ -51,11 +51,13 @@ export const SoundBubbleMaterial = shaderMaterial(
       float ripple = energyRipple(vWorldPos * 0.55, uTime);
       float rim = fresnel * (0.55 + 0.45 * ripple);
 
-      // Pushed past 1.0 on purpose — with toneMapped output disabled (see
-      // SoundBubble.tsx) this overdrives Bloom's luminance threshold so the
-      // shell reads as an intense light source, not a tinted transparency.
-      vec3 color = uColor * (1.3 + ripple * 1.2);
-      float alpha = clamp(rim * uOpacity, 0.0, 1.0);
+      // No more overdrive: this is a dark, semi-translucent threat now, not
+      // a bloom-fed glow, so color stays near its natural value.
+      vec3 color = uColor * (0.85 + ripple * 0.25);
+      // A constant base fill (not just the fresnel rim) so the sphere reads
+      // as a solid encroaching mass face-on, not a hollow glowing shell —
+      // the rim on top still gives it a defined, slightly darker edge.
+      float alpha = clamp((0.4 + rim * 0.6) * uOpacity, 0.0, 1.0);
 
       gl_FragColor = vec4(color, alpha);
     }

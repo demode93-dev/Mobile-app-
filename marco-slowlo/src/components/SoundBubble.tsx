@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { SoundBubble as SoundBubbleData } from '../lib/physics'
 import { bubbleRadiusAt } from '../lib/physics'
-import { colorForOwner } from '../lib/colors'
+import { BUBBLE_THREAT_COLOR } from '../lib/colors'
 import { gameClock } from '../lib/world'
 import '../shaders/SoundBubbleMaterial'
 
@@ -11,14 +11,15 @@ interface SoundBubbleProps {
   bubble: SoundBubbleData
 }
 
-/** Renders one expanding sound bubble: an outer fresnel "energy shell" plus a
- * faint additive inner fill so bloom picks up volume, not just the rim. */
+/** Renders one expanding sound bubble as a dark, semi-translucent crimson
+ * threat: a fresnel-edged outer shell plus a denser inner fill so it reads
+ * as a solid encroaching mass against the bright facility, not a hollow
+ * glowing shell. Deliberately no light source of its own — in this
+ * aesthetic the danger is a shadow, not a glow. */
 export function SoundBubbleView({ bubble }: SoundBubbleProps) {
   const shellRef = useRef<THREE.Mesh>(null)
   const fillRef = useRef<THREE.Mesh>(null)
   const shellMatRef = useRef<any>(null)
-  const washLightRef = useRef<THREE.PointLight>(null)
-  const color = colorForOwner(bubble.ownerId)
 
   useFrame(() => {
     const now = gameClock.elapsed
@@ -37,20 +38,11 @@ export function SoundBubbleView({ bubble }: SoundBubbleProps) {
       fillRef.current.position.set(bubble.origin.x, bubble.origin.y, bubble.origin.z)
       fillRef.current.scale.setScalar(radius)
       const fillMat = fillRef.current.material as THREE.MeshBasicMaterial
-      fillMat.opacity = opacity * 0.05
+      fillMat.opacity = opacity * 0.45
     }
     if (shellMatRef.current) {
       shellMatRef.current.uTime = now
       shellMatRef.current.uOpacity = opacity
-    }
-    if (washLightRef.current) {
-      // Sits low near the floor so its glow washes across the reflective
-      // metal as the wavefront grows, rather than lighting the sky. With
-      // the scene's ambient light turned way down, this is the arena's
-      // main light source while a bubble is alive — deliberately dramatic.
-      washLightRef.current.position.set(bubble.origin.x, 0.4, bubble.origin.z)
-      washLightRef.current.intensity = opacity * 14
-      washLightRef.current.distance = Math.max(6, radius * 1.8)
     }
   })
 
@@ -60,27 +52,22 @@ export function SoundBubbleView({ bubble }: SoundBubbleProps) {
         <sphereGeometry args={[1, 48, 32]} />
         <soundBubbleMaterial
           ref={shellMatRef}
-          uColor={color}
+          uColor={BUBBLE_THREAT_COLOR}
           transparent
           side={THREE.DoubleSide}
           depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          toneMapped={false}
         />
       </mesh>
       <mesh ref={fillRef}>
         <sphereGeometry args={[1, 24, 16]} />
         <meshBasicMaterial
-          color={color}
+          color={BUBBLE_THREAT_COLOR}
           transparent
-          opacity={0.05}
+          opacity={0.45}
           side={THREE.BackSide}
           depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          toneMapped={false}
         />
       </mesh>
-      <pointLight ref={washLightRef} color={color} intensity={0} decay={2} />
     </group>
   )
 }

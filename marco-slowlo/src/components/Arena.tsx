@@ -4,9 +4,10 @@ import { ARENA_HALF_SIZE } from '../lib/constants'
 const PILLAR_RING_RADIUS = ARENA_HALF_SIZE * 0.86
 const PILLAR_COUNT = 14
 
-/** A moody, high-contrast arena: dark reflective floor, a ring of glowing
- * pillars for spatial reference, and a soft perimeter wall so the player has
- * a legible boundary while sprinting. */
+/** A bright, sterile research-facility arena: glossy light tile floor, a
+ * ring of white lab columns with blue status caps for spatial reference,
+ * and a soft blue boundary marker so the player has a legible edge while
+ * sprinting. */
 export function Arena() {
   const pillarPositions = useMemo(() => {
     const positions: [number, number, number][] = []
@@ -19,41 +20,37 @@ export function Arena() {
 
   return (
     <group>
-      {/* Floor: dark, highly reflective metal so bubbles/pillars wash light across it */}
+      {/* Floor: glossy light tile so it reads as a clean-room surface and
+       * still picks up soft reflections from the overhead panel lights. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <circleGeometry args={[ARENA_HALF_SIZE * 1.05, 64]} />
-        <meshStandardMaterial color="#0b0912" roughness={0.1} metalness={0.8} envMapIntensity={1.4} />
+        <meshStandardMaterial color="#e7e9ee" roughness={0.35} metalness={0.5} envMapIntensity={1.2} />
       </mesh>
 
-      {/* Faint concentric rings etched into the floor for depth/scale cues */}
+      {/* Faint concentric floor markings for depth/scale cues */}
       {[6, 12, 18].map((r) => (
         <mesh key={r} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
           <ringGeometry args={[r - 0.04, r, 128]} />
-          <meshBasicMaterial color="#5b2bff" transparent opacity={0.14} />
+          <meshBasicMaterial color="#9aa8c2" transparent opacity={0.3} />
         </mesh>
       ))}
 
-      {/* Perimeter wall: low, glowing boundary marker */}
+      {/* Perimeter wall: low blue hazard-boundary marker */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
         <ringGeometry args={[ARENA_HALF_SIZE - 0.15, ARENA_HALF_SIZE, 96]} />
-        <meshBasicMaterial color="#c084fc" transparent opacity={0.5} />
+        <meshBasicMaterial color="#3b82f6" transparent opacity={0.55} />
       </mesh>
 
-      {/* Pillars */}
+      {/* Laboratory columns: white shafts with a blue status cap */}
       {pillarPositions.map((pos, i) => (
         <group key={i} position={pos}>
           <mesh castShadow position={[0, 2.2, 0]}>
             <boxGeometry args={[0.6, 4.4, 0.6]} />
-            <meshStandardMaterial color="#141019" roughness={0.5} metalness={0.4} />
+            <meshStandardMaterial color="#f2f4f7" roughness={0.4} metalness={0.25} />
           </mesh>
           <mesh position={[0, 4.5, 0]}>
             <boxGeometry args={[0.72, 0.12, 0.72]} />
-            <meshStandardMaterial
-              color="#7c3aed"
-              emissive="#7c3aed"
-              emissiveIntensity={2.2}
-              toneMapped={false}
-            />
+            <meshStandardMaterial color="#2563eb" emissive="#2563eb" emissiveIntensity={0.6} roughness={0.3} metalness={0.4} />
           </mesh>
         </group>
       ))}
@@ -62,5 +59,5 @@ export function Arena() {
 }
 
 export function ArenaFog() {
-  return <fogExp2 attach="fog" args={['#0a0712', 0.028]} />
+  return <fogExp2 attach="fog" args={['#dde2ec', 0.012]} />
 }

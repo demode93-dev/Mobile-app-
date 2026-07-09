@@ -2,11 +2,13 @@
 
 *Outrun your own voice.*
 
-A playable 3D browser prototype built with React Three Fiber. Shout, and the
-sound wave becomes a visible, expanding spherical bubble that grows outward
-from where you stood — at exactly walking speed. Stand still and it swallows
-you. Sprint clear before it catches up. Duck behind a pillar and its "acoustic
-shadow" blocks the wave entirely.
+A playable 3D browser prototype built with React Three Fiber, set in a
+bright, sterile research facility. Shout, and the sound wave becomes a
+visible, expanding deep-crimson bubble that grows outward from where you
+stood — at exactly walking speed — standing out as a dark, high-contrast
+threat against the clean-room white. Stand still and it swallows you.
+Sprint clear before it catches up. Duck behind a containment pillar and
+its "acoustic shadow" blocks the wave entirely.
 
 ## Run it
 
@@ -61,14 +63,24 @@ canvas once to grab mouse-look (pointer lock).
   and flee nearby bubbles, proving the bubble physics generalize to more
   than one simultaneous shouter (the part that matters once real networking
   gets bolted on — this prototype has no netcode, it's single-session).
-- `src/components/CoverPillars.tsx` — the ~40 cover pillars as a single
-  InstancedMesh draw call.
-- `src/shaders/SoundBubbleMaterial.ts` — the fresnel-rim "energy shell"
-  shader (procedural ripple, no textures) that bloom picks up as glowing hot
-  -pink/cyan kinetic energy.
-- `src/components/Effects.tsx` — SSAO (contact shadows under the pillars) +
-  Bloom + vignette + grain, in that order so bloom lights the
-  already-shadowed result rather than washing it out.
+- `src/components/CoverPillars.tsx` — the ~40 cover pillars as white
+  containment-crate columns (one InstancedMesh for the shafts, one more for
+  the blue metallic accent bands) — still cylindrical, matching the
+  circle-based collision math exactly, so what you see is what blocks a
+  shout.
+- `src/shaders/SoundBubbleMaterial.ts` — the fresnel-rim shell shader
+  (procedural ripple, no textures) for the bubble: a semi-translucent deep
+  crimson mass with a constant base fill plus a defined edge, not a
+  bloom-fed glow — the danger is a shadow in this facility, not a light
+  source.
+- `src/components/Effects.tsx` — just SSAO, for contact shadows under the
+  pillars/characters. No bloom/vignette/grain: the bright, clinical render
+  is the point, and the dark bubbles need to read as an intentional void in
+  that brightness rather than get blown out by glow.
+- `src/lib/colors.ts` — `colorForOwner` is identity-only now (visor/body
+  trim, so you can tell bots apart); every bubble uses the single shared
+  `BUBBLE_THREAT_COLOR` regardless of who shouted, since the danger should
+  read as one unmistakable shape, not a rainbow of per-owner glows.
 
 ### A trap worth knowing about
 

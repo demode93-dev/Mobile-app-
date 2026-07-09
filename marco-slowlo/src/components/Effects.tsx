@@ -1,34 +1,24 @@
-import { Bloom, EffectComposer, Noise, SSAO, Vignette } from '@react-three/postprocessing'
-import { BlendFunction } from 'postprocessing'
+import { EffectComposer, SSAO } from '@react-three/postprocessing'
 
-/** Bloom makes the shout bubbles read as glowing kinetic energy rather than
- * flat transparent geometry; SSAO seats the cover pillars into the floor
- * with real contact shadows instead of looking pasted on; the vignette +
- * faint noise keep the arena feeling moody and analog instead of clean/CG.
- * SSAO runs before Bloom in the chain so bloom blooms the *lit* result,
- * not a result that's already been flattened by ambient occlusion. */
+/** Just SSAO now: it seats the containment-crate pillars and characters
+ * into the glossy floor with real contact shadows, which matters even more
+ * in a bright, evenly-lit facility where nothing else is casting visual
+ * weight. Bloom, vignette, and film grain are gone on purpose — a crisp,
+ * clinical render is the point, and the dark crimson bubbles need to read
+ * as an intentional void in that brightness, not get blown out by glow. */
 export function Effects() {
   return (
     <EffectComposer multisampling={4} enableNormalPass>
       <SSAO
-        radius={0.35}
-        intensity={22}
-        luminanceInfluence={0.55}
+        radius={0.32}
+        intensity={16}
+        luminanceInfluence={0.7}
         bias={0.035}
         worldDistanceThreshold={1}
         worldDistanceFalloff={0.5}
         worldProximityThreshold={6}
         worldProximityFalloff={1}
       />
-      <Bloom
-        intensity={1.5}
-        luminanceThreshold={0.1}
-        luminanceSmoothing={0.35}
-        mipmapBlur
-        radius={0.85}
-      />
-      <Vignette eskil={false} offset={0.28} darkness={0.85} />
-      <Noise premultiply blendFunction={BlendFunction.SOFT_LIGHT} opacity={0.06} />
     </EffectComposer>
   )
 }
