@@ -51,7 +51,10 @@ export const SoundBubbleMaterial = shaderMaterial(
       float ripple = energyRipple(vWorldPos * 0.55, uTime);
       float rim = fresnel * (0.55 + 0.45 * ripple);
 
-      vec3 color = uColor * (0.85 + ripple * 0.7);
+      // Pushed past 1.0 on purpose — with toneMapped output disabled (see
+      // SoundBubble.tsx) this overdrives Bloom's luminance threshold so the
+      // shell reads as an intense light source, not a tinted transparency.
+      vec3 color = uColor * (1.3 + ripple * 1.2);
       float alpha = clamp(rim * uOpacity, 0.0, 1.0);
 
       gl_FragColor = vec4(color, alpha);

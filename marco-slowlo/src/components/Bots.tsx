@@ -129,11 +129,18 @@ function Bot({ id, initialPosition }: BotProps) {
 
   return (
     <group ref={bodyRef}>
+      {/* Body stays a dark shell with only a faint tint — the visor below
+       * is what should read as "glowing" against the dark arena. */}
       <mesh position={[0, 0.9, 0]} castShadow>
         <capsuleGeometry args={[PLAYER_HITBOX_RADIUS, 1.0, 6, 12]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.2} roughness={0.55} />
+        <meshStandardMaterial color="#1a1720" emissive={color} emissiveIntensity={0.12} roughness={0.6} />
       </mesh>
-      <pointLight position={[0, 1.4, 0]} color={color} intensity={0.9} distance={3} decay={2} />
+      {/* Glowing visor, colored per-owner so a bot is identifiable at a glance. */}
+      <mesh position={[0, 1.35, -0.4]}>
+        <boxGeometry args={[0.34, 0.09, 0.06]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={4} toneMapped={false} />
+      </mesh>
+      <pointLight position={[0, 1.4, -0.3]} color={color} intensity={1.1} distance={3.5} decay={2} />
     </group>
   )
 }

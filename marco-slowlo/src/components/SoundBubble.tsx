@@ -45,10 +45,12 @@ export function SoundBubbleView({ bubble }: SoundBubbleProps) {
     }
     if (washLightRef.current) {
       // Sits low near the floor so its glow washes across the reflective
-      // metal as the wavefront grows, rather than lighting the sky.
+      // metal as the wavefront grows, rather than lighting the sky. With
+      // the scene's ambient light turned way down, this is the arena's
+      // main light source while a bubble is alive — deliberately dramatic.
       washLightRef.current.position.set(bubble.origin.x, 0.4, bubble.origin.z)
-      washLightRef.current.intensity = opacity * 8
-      washLightRef.current.distance = Math.max(5, radius * 1.6)
+      washLightRef.current.intensity = opacity * 14
+      washLightRef.current.distance = Math.max(6, radius * 1.8)
     }
   })
 
@@ -63,6 +65,7 @@ export function SoundBubbleView({ bubble }: SoundBubbleProps) {
           side={THREE.DoubleSide}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
+          toneMapped={false}
         />
       </mesh>
       <mesh ref={fillRef}>

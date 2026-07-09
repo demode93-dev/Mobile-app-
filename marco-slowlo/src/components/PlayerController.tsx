@@ -267,17 +267,19 @@ export function PlayerController() {
 
   return (
     <group ref={bodyRef}>
-      {/* Player capsule body */}
+      {/* Player capsule body — kept dark so it doesn't fight the visor for attention */}
       <mesh position={[0, 0.9, 0]} castShadow>
         <capsuleGeometry args={[PLAYER_HITBOX_RADIUS, 1.0, 6, 12]} />
-        <meshStandardMaterial color="#e5e1f5" roughness={0.4} metalness={0.1} />
+        <meshStandardMaterial color="#2a2733" roughness={0.5} metalness={0.2} />
       </mesh>
-      {/* Facing indicator */}
-      <mesh position={[0, 1.35, -0.42]}>
-        <sphereGeometry args={[0.08, 12, 12]} />
-        <meshBasicMaterial color="#a78bfa" toneMapped={false} />
+      {/* Glowing visor: a bright emissive band across the "face" so the
+       * player reads clearly in a very dark arena without needing the body
+       * itself to be lit up. */}
+      <mesh position={[0, 1.35, -0.4]}>
+        <boxGeometry args={[0.34, 0.09, 0.06]} />
+        <meshStandardMaterial color="#22e0ff" emissive="#22e0ff" emissiveIntensity={4.5} toneMapped={false} />
       </mesh>
-      <pointLight position={[0, 1.4, 0]} color="#a78bfa" intensity={1.4} distance={4} decay={2} />
+      <pointLight position={[0, 1.4, -0.3]} color="#22e0ff" intensity={1.6} distance={4.5} decay={2} />
     </group>
   )
 }

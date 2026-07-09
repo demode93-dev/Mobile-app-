@@ -33,7 +33,10 @@ export function CoverPillars() {
       receiveShadow
     >
       <cylinderGeometry args={[COVER_PILLAR_RADIUS, COVER_PILLAR_RADIUS, COVER_PILLAR_HEIGHT, 12]} />
-      <meshStandardMaterial color="#0a0810" roughness={0.75} metalness={0.15} />
+      {/* Dark and matte on purpose: they should absorb light rather than
+       * mirror it, so SSAO's contact shadow at their base actually reads
+       * against the glossy floor instead of blending into a reflection. */}
+      <meshStandardMaterial color="#050308" roughness={0.95} metalness={0.02} />
     </instancedMesh>
   )
 }

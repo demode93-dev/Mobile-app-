@@ -41,15 +41,18 @@ export function Experience() {
         />
       </Environment>
 
-      <hemisphereLight args={['#4c3d8f', '#0a0710', 0.55]} />
+      {/* Deliberately dim: the arena should read as very dark, with the
+       * bubbles/visors/emissive trim doing the actual work of lighting it
+       * via bloom, not flat ambient fill. */}
+      <hemisphereLight args={['#4c3d8f', '#0a0710', 0.16]} />
       <directionalLight
         position={[10, 14, -6]}
-        intensity={0.9}
+        intensity={0.35}
         color="#9d8cff"
         castShadow
         shadow-mapSize={[1024, 1024]}
       />
-      <pointLight position={[0, 6, 0]} intensity={0.5} color="#7c3aed" distance={30} decay={2} />
+      <pointLight position={[0, 6, 0]} intensity={0.22} color="#7c3aed" distance={30} decay={2} />
 
       <Arena />
       <CoverPillars />
