@@ -4,10 +4,12 @@ import {
   bubblesCatchingPoint,
   clearanceFromBubble,
   distance3,
+  distanceToPillarSurface,
   findHidingSpot,
   isBubbleExpired,
   isLineOfSightBlocked,
   isPointCaughtByBubble,
+  nearestPillar,
   type CoverPillar,
   type SoundBubble,
 } from './physics'
@@ -167,7 +169,7 @@ describe('clearanceFromBubble', () => {
 
 describe('isLineOfSightBlocked (cover pillars / "acoustic shadow")', () => {
   function pillar(overrides: Partial<CoverPillar> = {}): CoverPillar {
-    return { x: 0, z: 0, radius: 1, ...overrides }
+    return { x: 0, z: 0, radius: 1, color: '#000000', ...overrides }
   }
 
   it('is not blocked with no pillars at all', () => {
@@ -226,9 +228,36 @@ describe('isLineOfSightBlocked (cover pillars / "acoustic shadow")', () => {
   })
 })
 
+describe('nearestPillar / distanceToPillarSurface (camouflage targeting)', () => {
+  function pillar(overrides: Partial<CoverPillar> = {}): CoverPillar {
+    return { x: 0, z: 0, radius: 1, color: '#000000', ...overrides }
+  }
+
+  it('returns null with no pillars at all', () => {
+    expect(nearestPillar({ x: 0, y: 0, z: 0 }, [])).toBeNull()
+  })
+
+  it('picks whichever pillar is closest, not just the first', () => {
+    const far = pillar({ x: 20, z: 0, color: '#111111' })
+    const near = pillar({ x: 2, z: 0, color: '#222222' })
+    const result = nearestPillar({ x: 0, y: 0, z: 0 }, [far, near])
+    expect(result).toBe(near)
+  })
+
+  it('distanceToPillarSurface is the gap to the pillar edge, not its center', () => {
+    const p = pillar({ x: 5, z: 0, radius: 1 })
+    expect(distanceToPillarSurface({ x: 0, y: 0, z: 0 }, p)).toBeCloseTo(4)
+  })
+
+  it('distanceToPillarSurface goes negative once the point is inside the pillar radius', () => {
+    const p = pillar({ x: 0, z: 0, radius: 2 })
+    expect(distanceToPillarSurface({ x: 1, y: 0, z: 0 }, p)).toBeCloseTo(-1)
+  })
+})
+
 describe('findHidingSpot (evading-bot AI)', () => {
   function pillar(overrides: Partial<CoverPillar> = {}): CoverPillar {
-    return { x: 0, z: 0, radius: 1, ...overrides }
+    return { x: 0, z: 0, radius: 1, color: '#000000', ...overrides }
   }
 
   it('returns null when there are no pillars', () => {

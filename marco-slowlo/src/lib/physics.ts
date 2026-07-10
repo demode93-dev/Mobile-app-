@@ -97,6 +97,11 @@ export interface CoverPillar {
   x: number
   z: number
   radius: number
+  /** Exact solid color of this pet-store item — a chameleon camouflaging
+   * against it takes this EXACT hex string, compared for strict equality
+   * (see nearestPillar / the color-match survival check in
+   * SoundBubbleManager). */
+  color: string
 }
 
 /**
@@ -140,6 +145,31 @@ export function isLineOfSightBlocked(
     if (dist <= pillar.radius) return true
   }
   return false
+}
+
+/** Whichever pillar (pet-store item) is closest to a point, or null if the
+ * list is empty. Used both to decide what an evader is trying to camouflage
+ * against and, live, at the instant a Sensory Pulse would hit, to check
+ * whether they still match whatever's actually nearest right now. */
+export function nearestPillar(position: Vec3Like, pillars: CoverPillar[]): CoverPillar | null {
+  let best: CoverPillar | null = null
+  let bestDistSq = Infinity
+  for (const pillar of pillars) {
+    const dx = pillar.x - position.x
+    const dz = pillar.z - position.z
+    const distSq = dx * dx + dz * dz
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq
+      best = pillar
+    }
+  }
+  return best
+}
+
+/** Distance from a point to a pillar's surface — negative once the point is
+ * inside the pillar's own radius. */
+export function distanceToPillarSurface(position: Vec3Like, pillar: CoverPillar): number {
+  return Math.hypot(pillar.x - position.x, pillar.z - position.z) - pillar.radius
 }
 
 /**

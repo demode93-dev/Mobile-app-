@@ -3,63 +3,45 @@ import { extend } from '@react-three/fiber'
 import * as THREE from 'three'
 
 /**
- * Fresnel-rim "dark threat" shell shader for the expanding sound bubble.
- * Uses a cheap sum-of-sines procedural ripple instead of a noise texture
- * lookup, so the whole effect is a handful of ALU ops per fragment.
+ * Flat, semi-translucent shell shader for the Sensory Pulse. Deliberately
+ * almost no shading — a hyper-vibrant solid color plus a thin brighter
+ * fresnel edge so the sphere still reads as a sweeping wavefront and not a
+ * hollow glowing membrane, but nothing about it ripples or ages the color
+ * over time the way the old "living threat" shell did.
  */
 export const SoundBubbleMaterial = shaderMaterial(
   {
-    uTime: 0,
-    uColor: new THREE.Color('#8b5cf6'),
+    uColor: new THREE.Color('#ff17d6'),
     uOpacity: 1,
-    uFresnelPower: 2.1,
   },
   /* glsl vertex */ `
     varying vec3 vNormal;
     varying vec3 vViewDir;
-    varying vec3 vWorldPos;
 
     void main() {
       vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-      vWorldPos = worldPosition.xyz;
       vNormal = normalize(mat3(modelMatrix) * normal);
       vViewDir = normalize(cameraPosition - worldPosition.xyz);
       gl_Position = projectionMatrix * viewMatrix * worldPosition;
     }
   `,
   /* glsl fragment */ `
-    uniform float uTime;
     uniform vec3 uColor;
     uniform float uOpacity;
-    uniform float uFresnelPower;
 
     varying vec3 vNormal;
     varying vec3 vViewDir;
-    varying vec3 vWorldPos;
-
-    float energyRipple(vec3 p, float t) {
-      float a = sin(p.x * 2.2 + t * 1.6) * 0.5 + 0.5;
-      float b = sin(p.y * 3.1 - t * 2.1 + p.z * 1.7) * 0.5 + 0.5;
-      float c = sin((p.x + p.z) * 1.4 + t * 1.1) * 0.5 + 0.5;
-      return a * 0.4 + b * 0.4 + c * 0.2;
-    }
 
     void main() {
       vec3 n = normalize(vNormal);
       vec3 v = normalize(vViewDir);
-      float fresnel = pow(1.0 - clamp(dot(n, v), 0.0, 1.0), uFresnelPower);
-      float ripple = energyRipple(vWorldPos * 0.55, uTime);
-      float rim = fresnel * (0.55 + 0.45 * ripple);
+      float fresnel = pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 2.2);
 
-      // No more overdrive: this is a dark, semi-translucent threat now, not
-      // a bloom-fed glow, so color stays near its natural value.
-      vec3 color = uColor * (0.85 + ripple * 0.25);
-      // A constant base fill (not just the fresnel rim) so the sphere reads
-      // as a solid encroaching mass face-on, not a hollow glowing shell —
-      // the rim on top still gives it a defined, slightly darker edge.
-      float alpha = clamp((0.4 + rim * 0.6) * uOpacity, 0.0, 1.0);
+      // Flat fill plus a thin brighter rim for shape definition — no ripple,
+      // no color aging, just the one hyper-vibrant hue throughout.
+      float alpha = clamp((0.45 + fresnel * 0.3) * uOpacity, 0.0, 1.0);
 
-      gl_FragColor = vec4(color, alpha);
+      gl_FragColor = vec4(uColor, alpha);
     }
   `,
 )
@@ -69,10 +51,8 @@ extend({ SoundBubbleMaterial })
 declare module '@react-three/fiber' {
   interface ThreeElements {
     soundBubbleMaterial: ThreeElements['shaderMaterial'] & {
-      uTime?: number
       uColor?: THREE.Color | string
       uOpacity?: number
-      uFresnelPower?: number
     }
   }
 }

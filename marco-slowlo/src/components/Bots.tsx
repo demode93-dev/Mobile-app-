@@ -4,7 +4,13 @@ import { PositionalAudio } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '../store/gameStore'
 import { gameClock, getBotTransform, playerTransform } from '../lib/world'
-import { clearanceFromBubble, findHidingSpot, isLineOfSightBlocked } from '../lib/physics'
+import {
+  clearanceFromBubble,
+  distanceToPillarSurface,
+  findHidingSpot,
+  isLineOfSightBlocked,
+  nearestPillar,
+} from '../lib/physics'
 import { colorForOwner } from '../lib/colors'
 import { playShout, setAudioMuffled, SHOUT_SOUND_URL } from '../lib/audio'
 import { COVER_PILLARS } from '../lib/pillars'
@@ -15,6 +21,8 @@ import {
   BOT_HUNT_AGGRO_RANGE,
   BOT_ID,
   BOT_SPAWN_MIN_DISTANCE,
+  CAMOUFLAGE_LERP_RATE,
+  CAMOUFLAGE_RANGE,
   MAX_FRAME_DELTA,
   PLAYER_HITBOX_RADIUS,
   SHOUT_COOLDOWN,
@@ -31,6 +39,8 @@ const HIDE_SPOT_MARGIN = 1.5
 const HIDE_SPOT_REACHED_DIST = 0.5
 const HIDE_SPOT_REFRESH_INTERVAL = 1.5
 
+const scratchColor = new THREE.Color()
+
 /** The single Bot, playing tag against the player. Its whole strategy
  * flips on one question, asked fresh every frame: am I "It"?
  *  - Hunting: beeline for the player and, once in range and off cooldown,
@@ -38,10 +48,13 @@ const HIDE_SPOT_REFRESH_INTERVAL = 1.5
  *    eats, so a missed shout is a real opening for the player to close in.
  *  - Evading: run from the hunter's actual bubble if one is closing in,
  *    otherwise path toward whichever pillar's "shadow" (see findHidingSpot)
- *    is nearest, and sit there. It never shouts while evading — that would
- *    only give its position away for no benefit. */
+ *    is nearest, and sit there. Whenever it's close enough to an item, it
+ *    automatically camouflages against it (no button — that's the AI's one
+ *    concession to not having thumbs). It never shouts while evading —
+ *    that would only give its position away for no benefit. */
 function Bot({ id, initialPosition }: { id: string; initialPosition: [number, number, number] }) {
   const bodyRef = useRef<THREE.Group>(null)
+  const bodyMaterialRef = useRef<THREE.MeshStandardMaterial>(null)
   const transform = useMemo(() => getBotTransform(id), [id])
   const wasPlayingRef = useRef(false)
   const rootedUntilRef = useRef(0)
@@ -51,6 +64,7 @@ function Bot({ id, initialPosition }: { id: string; initialPosition: [number, nu
   const audioRef = useRef<THREE.PositionalAudio>(null)
   const wasMuffledRef = useRef(false)
   const color = useMemo(() => colorForOwner(id), [id])
+  const displayColorRef = useRef(new THREE.Color(color))
 
   useFrame((_state, rawDelta) => {
     const delta = Math.min(rawDelta, MAX_FRAME_DELTA)
@@ -81,6 +95,10 @@ function Bot({ id, initialPosition }: { id: string; initialPosition: [number, nu
     let speed = botWalkSpeed
 
     if (isHunting) {
+      // Hunting shows true colors, not a leftover camouflage tint from the
+      // last time this Bot was evading.
+      transform.camouflageColor = null
+
       const dx = playerTransform.position.x - transform.position.x
       const dz = playerTransform.position.z - transform.position.z
       const dist = Math.hypot(dx, dz)
@@ -97,6 +115,12 @@ function Bot({ id, initialPosition }: { id: string; initialPosition: [number, nu
         playShout(audioRef.current)
       }
     } else {
+      // No button to press — the AI camouflages automatically whenever
+      // it's close enough to an item, live every frame.
+      const nearestItem = nearestPillar(transform.position, COVER_PILLARS)
+      const inCamouflageRange = nearestItem !== null && distanceToPillarSurface(transform.position, nearestItem) <= CAMOUFLAGE_RANGE
+      transform.camouflageColor = inCamouflageRange ? nearestItem!.color : null
+
       let nearestClearance = Infinity
       let awayX = 0
       let awayZ = 0
@@ -176,15 +200,23 @@ function Bot({ id, initialPosition }: { id: string; initialPosition: [number, nu
       bodyRef.current.position.set(transform.position.x, transform.position.y, transform.position.z)
       bodyRef.current.rotation.y = transform.yaw
     }
+
+    // Chase whatever color this Bot is currently supposed to be
+    // (camouflaged or native) — same smoothing as the player.
+    const targetColorHex = transform.camouflageColor ?? color
+    displayColorRef.current.lerp(scratchColor.set(targetColorHex), 1 - Math.exp(-CAMOUFLAGE_LERP_RATE * delta))
+    if (bodyMaterialRef.current) {
+      bodyMaterialRef.current.color.copy(displayColorRef.current)
+    }
   })
 
   return (
     <group ref={bodyRef}>
-      {/* Body stays a dark shell with only a faint tint — the visor below
-       * is what should read as "glowing" against the bright arena. */}
+      {/* Chameleon body — chases either the exact color of whatever it's
+       * camouflaged against, or its own native identity hue. */}
       <mesh position={[0, 0.9, 0]} castShadow>
         <capsuleGeometry args={[PLAYER_HITBOX_RADIUS, 1.0, 6, 12]} />
-        <meshStandardMaterial color="#1a1720" emissive={color} emissiveIntensity={0.12} roughness={0.6} />
+        <meshStandardMaterial ref={bodyMaterialRef} color={color} roughness={0.5} metalness={0.15} />
       </mesh>
       {/* Glowing visor, colored per-owner so a bot is identifiable at a glance. */}
       <mesh position={[0, 1.35, -0.4]}>

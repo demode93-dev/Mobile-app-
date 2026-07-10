@@ -15,8 +15,9 @@
 export const touchMoveVector = { x: 0, y: 0 }
 
 /**
- * PlayerController assigns its real triggerShout() here once on mount, so
- * the on-screen SHOUT button calls the exact same function Space does —
- * not a re-implementation of it.
+ * PlayerController assigns its real triggerAction() here once on mount, so
+ * the on-screen action button calls the exact same function Space/click
+ * does — not a re-implementation of it. What it does depends on role: a
+ * Sensory Pulse while hunting, a camouflage attempt while evading.
  */
-export const shoutTrigger = { current: () => {} }
+export const actionTrigger = { current: () => {} }

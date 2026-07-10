@@ -4,10 +4,10 @@ import { ARENA_HALF_SIZE } from '../lib/constants'
 const PILLAR_RING_RADIUS = ARENA_HALF_SIZE * 0.86
 const PILLAR_COUNT = 14
 
-/** A bright, sterile research-facility arena: glossy light tile floor, a
- * ring of white lab columns with blue status caps for spatial reference,
- * and a soft blue boundary marker so the player has a legible edge while
- * sprinting. */
+/** A bright, fully-lit pet-store floor: clean neutral tile so the vibrant
+ * fish-tank/food-bag/scratching-post obstacles pop, a ring of white display
+ * columns for spatial reference, and a soft blue boundary marker so the
+ * player has a legible edge while sprinting. */
 export function Arena() {
   const pillarPositions = useMemo(() => {
     const positions: [number, number, number][] = []
@@ -20,11 +20,11 @@ export function Arena() {
 
   return (
     <group>
-      {/* Floor: glossy light tile so it reads as a clean-room surface and
-       * still picks up soft reflections from the overhead panel lights. */}
+      {/* Floor: clean, neutral bright tile — deliberately plain so the
+       * saturated obstacle colors read clearly against it. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <circleGeometry args={[ARENA_HALF_SIZE * 1.05, 64]} />
-        <meshStandardMaterial color="#e7e9ee" roughness={0.35} metalness={0.5} envMapIntensity={1.2} />
+        <meshStandardMaterial color="#f0ebe0" roughness={0.45} metalness={0.35} envMapIntensity={1.0} />
       </mesh>
 
       {/* Faint concentric floor markings for depth/scale cues */}

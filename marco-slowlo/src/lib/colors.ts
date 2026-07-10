@@ -1,12 +1,14 @@
 const BOT_PALETTE = ['#f59e0b', '#22d3ee', '#f43f5e', '#84cc16']
 
-/** Hot-pink for the player's own identity (visor/body trim) — reads
- * instantly against the bots' cooler palette. Distinct from the bubble's
- * own color (see BUBBLE_THREAT_COLOR below): who shouted and how
- * dangerous the shout looks are two different questions now. */
+/** Hot-pink identity color for the player's own true/native colors — the
+ * chameleon's own hue whenever it isn't camouflaged against anything.
+ * Distinct from every pet-store item color (see pillars.ts) and from the
+ * Sensory Pulse's own color, so "not currently matching anything" never
+ * accidentally reads as a match. */
 const PLAYER_IDENTITY_COLOR = '#ff2bd6'
 
-/** Deterministic identity color per owner, for visors/body trim only. */
+/** Deterministic identity color per owner — each actor's true/native color
+ * whenever it isn't camouflaged. */
 export function colorForOwner(ownerId: string): string {
   if (ownerId === 'player') return PLAYER_IDENTITY_COLOR
   let hash = 0
@@ -15,9 +17,9 @@ export function colorForOwner(ownerId: string): string {
 }
 
 /**
- * Every shout bubble uses this single deep-crimson threat color regardless
- * of who made it — in the bright sterile-facility aesthetic, the danger
- * should read as one unmistakable dark shape against the white arena, not
- * a rainbow of per-owner glows.
+ * The owner's Sensory Pulse: a flat, semi-translucent, hyper-vibrant
+ * electric hot-pink wavefront that sweeps outward from whoever is
+ * currently "It". One fixed color regardless of who cast it, so the
+ * threat always reads as one unmistakable shape.
  */
-export const BUBBLE_THREAT_COLOR = '#7a0012'
+export const SENSORY_PULSE_COLOR = '#ff17d6'

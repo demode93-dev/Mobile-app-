@@ -2,6 +2,7 @@ import { useGameStore } from '../store/gameStore'
 import { unlockAudio } from '../lib/audio'
 import { BOT_ID } from '../lib/constants'
 import { getLevel, LEVELS } from '../lib/levels'
+import { PET_STORE_ITEM_KINDS } from '../lib/pillars'
 import { TouchControls } from './TouchControls'
 
 function formatCountdown(seconds: number): string {
@@ -29,13 +30,26 @@ function StaminaBar() {
   )
 }
 
-function ShoutIndicator() {
+/** Cooldown only applies to the hunter's Sensory Pulse — camouflage is
+ * instant and always available, so evading shows a static hint instead of
+ * a bar with nothing to fill. */
+function ActionIndicator() {
   const cooldown = useGameStore((s) => s.shoutCooldownRemaining)
+  const isHunting = useGameStore((s) => s.currentItId === 'player')
   const ready = cooldown <= 0
+
+  if (!isHunting) {
+    return (
+      <div className="flex flex-col items-end gap-1 w-40">
+        <span className="text-[10px] tracking-[0.2em] text-white/50 font-medium">CAMOUFLAGE</span>
+        <span className="text-xs font-semibold text-emerald-300">SPACE — MATCH A COLOR</span>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col items-end gap-1 w-40">
-      <span className="text-[10px] tracking-[0.2em] text-white/50 font-medium">SHOUT</span>
+      <span className="text-[10px] tracking-[0.2em] text-white/50 font-medium">SENSORY PULSE</span>
       <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden ring-1 ring-white/10">
         <div
           className={`h-full transition-[width] duration-100 ease-out ${ready ? 'bg-fuchsia-400' : 'bg-white/25'}`}
@@ -79,7 +93,7 @@ function RoleBanner() {
         isHunting ? 'bg-red-600/90 text-white' : 'bg-emerald-500/90 text-black'
       }`}
     >
-      {isHunting ? 'YOU ARE HUNTING' : 'EVADE'}
+      {isHunting ? 'YOU ARE SWEEPING' : 'BLEND IN'}
     </div>
   )
 }
@@ -101,7 +115,7 @@ function StartOverlay() {
         <h1 className="text-3xl font-semibold tracking-tight text-white">
           MARCO <span className="text-fuchsia-400">SLOW</span>-LO
         </h1>
-        <p className="mt-2 text-sm text-white/60">Tag, with your own voice as the weapon.</p>
+        <p className="mt-2 text-sm text-white/60">Bonkers Pet Store — blend in, or get spotted.</p>
 
         <div className="mt-6 space-y-2 text-left text-sm text-white/70">
           <p>
@@ -110,14 +124,15 @@ function StartOverlay() {
           </p>
           <p>
             <kbd className="rounded bg-white/10 px-1.5 py-0.5 text-xs">SPACE</kbd> /{' '}
-            <kbd className="rounded bg-white/10 px-1.5 py-0.5 text-xs">CLICK</kbd> shout — spawns an
-            expanding sound bubble at walking speed
+            <kbd className="rounded bg-white/10 px-1.5 py-0.5 text-xs">CLICK</kbd> — while sweeping,
+            emits a Sensory Pulse; while blending in, camouflages against the nearest item
           </p>
           <p className="text-white/50">
-            The Bot starts as "It." Whoever is It must catch the other in their bubble to pass the
-            tag on — a hit through a pillar's shadow doesn't count. Survive as the target until the
-            60-second clock runs out to clear the floor and take the elevator up — each one packs
-            the maze tighter and speeds up the Bot. Get caught and it's back to Floor 1.
+            The Bot starts as the sweeper. Stand next to a fish tank, food bags, or a scratching
+            post and hit the button to match its EXACT color — a Sensory Pulse passes harmlessly
+            over a perfect match. Wrong color, or caught out in the open, and you're tagged.
+            Survive the 60-second sweep to clear the floor and take the elevator up — each one
+            packs the shelves tighter and speeds up the sweep. Get tagged and it's back to Floor 1.
           </p>
         </div>
 
@@ -152,14 +167,19 @@ function LevelCompleteOverlay() {
       <div className="max-w-md rounded-2xl border border-white/10 bg-[#0b0912]/90 p-8 text-center shadow-[0_0_60px_rgba(16,185,129,0.25)]">
         <h2 className="text-3xl font-black tracking-tight text-emerald-400">FLOOR CLEARED</h2>
         <p className="mt-2 text-sm text-white/60">
-          You evaded the Bot for the whole of {clearedLevel.name} — time's up, you win this floor.
+          You blended in through the whole of {clearedLevel.name} — time's up, you win this floor.
         </p>
 
         <div className="mt-6 flex items-center justify-center gap-3 text-sm text-white/70">
-          <span
-            className="h-3 w-3 rounded-full ring-1 ring-white/30"
-            style={{ backgroundColor: nextLevel.crateColor }}
-          />
+          <span className="flex gap-1">
+            {PET_STORE_ITEM_KINDS.map((kind) => (
+              <span
+                key={kind.name}
+                className="h-3 w-3 rounded-full ring-1 ring-white/30"
+                style={{ backgroundColor: kind.color }}
+              />
+            ))}
+          </span>
           <span>
             {isLastFloor ? `${nextLevel.name} — maximum difficulty` : `Next up: ${nextLevel.name}`}
           </span>
@@ -198,8 +218,8 @@ function GameOverOverlay() {
         </h2>
         <p className="mt-2 text-sm text-white/60">
           {playerWon
-            ? "Time ran out with the Bot still hunting — you evaded the whole match."
-            : "Time ran out while you were still hunting — the Bot evaded you."}
+            ? 'Time ran out with the Bot still sweeping — you blended in the whole match.'
+            : 'Time ran out while you were still sweeping — the Bot blended in on you.'}
         </p>
         {!playerWon && (
           <p className="mt-1 text-xs text-white/40">Made it to {getLevel(levelIndex).name}. Back to Floor 1.</p>
@@ -237,7 +257,7 @@ function PlayingHUD() {
        * touch joystick/shout button live, and they need the room. */}
       <div className="absolute inset-x-0 bottom-0 flex items-end justify-between px-6 pb-32 sm:pb-6">
         <StaminaBar />
-        <ShoutIndicator />
+        <ActionIndicator />
       </div>
 
       <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/70" />

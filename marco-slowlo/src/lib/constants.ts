@@ -78,11 +78,23 @@ export const MATCH_DURATION = 60
 export const BOT_HUNT_AGGRO_RANGE = 10
 
 /** Visual height of each cover pillar, in meters — constant across floors;
- * count/radius/spacing are per-level now (see lib/levels.ts). */
+ * count/spacing are per-level, radius is per-item-kind (see lib/levels.ts
+ * and lib/pillars.ts). */
 export const COVER_PILLAR_HEIGHT = 5.5
 
 /** Keep-out radius around the arena center so pillars never spawn on the player's spawn point. */
 export const COVER_PILLAR_CLEAR_RADIUS = 4
+
+/**
+ * How close (to an obstacle's surface, in meters) an evader must be to
+ * successfully camouflage against it — checked both when the ability is
+ * attempted and again, live, at the instant a Sensory Pulse would hit.
+ */
+export const CAMOUFLAGE_RANGE = 2.4
+
+/** How fast the chameleon's displayed body color chases its target color
+ * (native or camouflaged), in 1/s — a lerp rate, not a hard duration. */
+export const CAMOUFLAGE_LERP_RATE = 12
 
 /** PositionalAudio reference distance, in meters — volume halves roughly every this many meters. */
 export const AUDIO_REFERENCE_DISTANCE = 5

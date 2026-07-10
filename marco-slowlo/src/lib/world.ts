@@ -15,11 +15,18 @@ import * as THREE from 'three'
 export interface ActorTransform {
   position: THREE.Vector3
   yaw: number
+  /** Exact hex color this actor currently displays, or null while showing
+   * its true/native color. Set on a deliberate camouflage attempt (player)
+   * or continuously by proximity (Bot AI); compared for EXACT string
+   * equality against whatever's actually nearest at the moment a Sensory
+   * Pulse would hit — see nearestPillar/SoundBubbleManager. */
+  camouflageColor: string | null
 }
 
 export const playerTransform: ActorTransform = {
   position: new THREE.Vector3(0, 0, 0),
   yaw: 0,
+  camouflageColor: null,
 }
 
 const botTransforms = new Map<string, ActorTransform>()
@@ -27,7 +34,7 @@ const botTransforms = new Map<string, ActorTransform>()
 export function getBotTransform(id: string): ActorTransform {
   let t = botTransforms.get(id)
   if (!t) {
-    t = { position: new THREE.Vector3(), yaw: 0 }
+    t = { position: new THREE.Vector3(), yaw: 0, camouflageColor: null }
     botTransforms.set(id, t)
   }
   return t

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import { shoutTrigger, touchMoveVector } from '../lib/input'
+import { actionTrigger, touchMoveVector } from '../lib/input'
+import { useGameStore } from '../store/gameStore'
 
 const JOYSTICK_RADIUS = 55
 const KNOB_SIZE = 76
@@ -15,13 +16,13 @@ interface JoystickVisual {
 
 const IDLE: JoystickVisual = { active: false, originX: 0, originY: 0, knobX: 0, knobY: 0 }
 
-/** Floating virtual joystick (bottom-left) + SHOUT button (bottom-right).
+/** Floating virtual joystick (bottom-left) + action button (bottom-right).
  * Uses the Pointer Events API — not raw touch or mouse events — so mouse,
  * touch, and pen all work identically, and each control tracks its own
  * pointer id independently. That last part matters: a real player drags
- * the joystick with one thumb while tapping SHOUT with the other, and
- * without per-pointer tracking the second touch would fight the first
- * for the same event stream instead of moving and shouting at once. */
+ * the joystick with one thumb while tapping the action button with the
+ * other, and without per-pointer tracking the second touch would fight the
+ * first for the same event stream instead of moving and acting at once. */
 function Joystick() {
   const [visual, setVisual] = useState<JoystickVisual>(IDLE)
   const activePointerId = useRef<number | null>(null)
@@ -119,20 +120,24 @@ function Joystick() {
   )
 }
 
-function ShoutButton() {
+/** Dual-purpose action button: emits a Sensory Pulse while hunting, or
+ * attempts to camouflage against the nearest item while evading — the
+ * label switches so it's always clear which one a tap will do. */
+function ActionButton() {
   const [pressed, setPressed] = useState(false)
+  const isHunting = useGameStore((s) => s.currentItId === 'player')
 
   function handlePointerDown(e: React.PointerEvent) {
     e.preventDefault()
     setPressed(true)
-    shoutTrigger.current()
+    actionTrigger.current()
   }
 
   return (
     <div className="pointer-events-none absolute bottom-8 right-8">
       <button
         type="button"
-        aria-label="Shout"
+        aria-label={isHunting ? 'Emit Sensory Pulse' : 'Camouflage'}
         className={`pointer-events-auto h-24 w-24 touch-none select-none rounded-full border-2 border-white/40 text-lg font-black tracking-widest text-white shadow-[0_0_30px_rgba(217,70,239,0.5)] transition-transform ${
           pressed ? 'scale-90 bg-fuchsia-400' : 'scale-100 bg-fuchsia-500'
         }`}
@@ -142,7 +147,7 @@ function ShoutButton() {
         onPointerCancel={() => setPressed(false)}
         onContextMenu={(e) => e.preventDefault()}
       >
-        SHOUT
+        {isHunting ? 'PULSE' : 'CAMO'}
       </button>
     </div>
   )
@@ -154,7 +159,7 @@ export function TouchControls() {
   return (
     <div className="absolute inset-0">
       <Joystick />
-      <ShoutButton />
+      <ActionButton />
     </div>
   )
 }

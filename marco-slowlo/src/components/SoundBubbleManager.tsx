@@ -1,10 +1,10 @@
 import { useFrame } from '@react-three/fiber'
 import { useGameStore } from '../store/gameStore'
 import { SoundBubbleView } from './SoundBubble'
-import { isBubbleExpired, isLineOfSightBlocked, isPointCaughtByBubble } from '../lib/physics'
+import { distanceToPillarSurface, isBubbleExpired, isPointCaughtByBubble, nearestPillar } from '../lib/physics'
 import { gameClock, getBotTransform, playerTransform } from '../lib/world'
 import { COVER_PILLARS } from '../lib/pillars'
-import { BOT_ID, ROUND_START_GRACE } from '../lib/constants'
+import { BOT_ID, CAMOUFLAGE_RANGE, ROUND_START_GRACE } from '../lib/constants'
 
 /** Owns the bubble lifecycle: expires old bubbles and runs the live tag
  * check every frame. Rendering of the still-alive bubbles is driven by the
@@ -20,8 +20,13 @@ import { BOT_ID, ROUND_START_GRACE } from '../lib/constants'
  * self-immunity window to maintain here anymore. What's left:
  *  - ROUND_START_GRACE / TAG_IMMUNITY_DURATION: brief windows where no tag
  *    can land (match start, and right after a role reversal).
- *  - Cover: a pillar on the straight line between the bubble's origin and
- *    the target blocks the tag ("acoustic shadow"), regardless of radius. */
+ *  - Camouflage: the target survives a hit only if BOTH (a) they're within
+ *    CAMOUFLAGE_RANGE of some item right now, AND (b) their current
+ *    displayed color exactly matches that item's color. Recomputing
+ *    "nearest item" fresh at the instant of the hit (rather than trusting
+ *    whatever they camouflaged against earlier) means wandering away from
+ *    a matched item toward a differently-colored one — or into the open —
+ *    correctly exposes them, with no separate bookkeeping needed. */
 export function SoundBubbleManager() {
   const bubbles = useGameStore((s) => s.bubbles)
 
@@ -44,17 +49,20 @@ export function SoundBubbleManager() {
 
     if (phase === 'playing' && !immune) {
       const targetId = currentItId === 'player' ? BOT_ID : 'player'
-      const targetPos = targetId === 'player' ? playerTransform.position : getBotTransform(targetId).position
+      const targetTransform = targetId === 'player' ? playerTransform : getBotTransform(targetId)
 
       for (const bubble of currentBubbles) {
         if (isBubbleExpired(bubble, now)) continue
         alive.add(bubble.id)
 
-        if (!tagged && bubble.ownerId === currentItId) {
-          const inCover = isLineOfSightBlocked(bubble.origin, targetPos, COVER_PILLARS)
-          if (!inCover && isPointCaughtByBubble(targetPos, bubble, now)) {
-            tagged = true
-          }
+        if (!tagged && bubble.ownerId === currentItId && isPointCaughtByBubble(targetTransform.position, bubble, now)) {
+          const nearest = nearestPillar(targetTransform.position, COVER_PILLARS)
+          const isCamouflaged =
+            targetTransform.camouflageColor !== null &&
+            nearest !== null &&
+            distanceToPillarSurface(targetTransform.position, nearest) <= CAMOUFLAGE_RANGE &&
+            targetTransform.camouflageColor === nearest.color
+          if (!isCamouflaged) tagged = true
         }
       }
     } else {
