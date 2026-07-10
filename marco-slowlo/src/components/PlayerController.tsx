@@ -34,6 +34,27 @@ const PITCH_MIN = -0.3
 const PITCH_MAX = 0.55
 const CAMERA_SMOOTHING = 14
 
+// Chent's sprint posture: pitched forward like a runner leaning into a dash.
+// The 30–45° range is the ask; sprinting sits at the top of it, walking eases
+// off so he isn't perpetually diving forward at a stroll.
+const LEAN_ANGLE_WALK = THREE.MathUtils.degToRad(16)
+const LEAN_ANGLE_SPRINT = THREE.MathUtils.degToRad(38)
+const LEAN_SMOOTHING = 10
+
+// Cartoon-sprint leg cycle: two hip pivots swinging in opposite phase, sine-
+// driven rather than a full animation clip — cheap and reads as "explosive"
+// once the amplitude and cycle rate are both pushed well past realism.
+const LEG_SWING_MAX = THREE.MathUtils.degToRad(52)
+const LEG_SWING_SMOOTHING = 14
+const LEG_CYCLE_RATE_WALK = 9
+const LEG_CYCLE_RATE_SPRINT = 17
+
+const HIP_OFFSET = 0.16
+const HIP_Y = 0.62
+const UPPER_LEG_LENGTH = 0.42
+const SHOE_LENGTH = 0.2
+const TORSO_Y = HIP_Y + 0.55
+
 const scratchColor = new THREE.Color()
 
 interface KeyState {
@@ -51,16 +72,42 @@ function shortestAngleDelta(from: number, to: number): number {
   return delta
 }
 
-/** Third-person player rig: pointer-lock mouse look, WASD movement relative
- * to camera yaw, hold-to-sprint with a stamina budget, and one dual-purpose
- * action trigger (Sensory Pulse while hunting, camouflage while evading).
- * Writes the authoritative transform into `playerTransform` (see lib/world)
- * every frame instead of React state, so it never causes a re-render. */
+/** A lathed "teardrop" solid of revolution for Chent's torso — round and
+ * full up top, tapering to a point at the base — reads as a sleek,
+ * aerodynamic core once the whole body group is pitched into a sprint lean,
+ * instead of the uniform capsule every other actor still uses. */
+function createTeardropGeometry(): THREE.LatheGeometry {
+  const points = [
+    new THREE.Vector2(0, -0.55),
+    new THREE.Vector2(0.14, -0.42),
+    new THREE.Vector2(0.28, -0.18),
+    new THREE.Vector2(0.36, 0.05),
+    new THREE.Vector2(0.34, 0.28),
+    new THREE.Vector2(0.22, 0.46),
+    new THREE.Vector2(0.08, 0.54),
+    new THREE.Vector2(0, 0.56),
+  ]
+  return new THREE.LatheGeometry(points, 20)
+}
+
+/** Third-person rig for Chent, the player's chameleon runner: pointer-lock
+ * mouse look, WASD movement relative to camera yaw, hold-to-sprint with a
+ * stamina budget, and one dual-purpose action trigger (Sensory Pulse while
+ * hunting, camouflage while evading). Writes the authoritative transform
+ * into `playerTransform` (see lib/world) every frame instead of React
+ * state, so it never causes a re-render. */
 export function PlayerController() {
   const { camera, gl } = useThree()
   const phase = useGameStore((s) => s.phase)
   const bodyRef = useRef<THREE.Group>(null)
   const bodyMaterialRef = useRef<THREE.MeshStandardMaterial>(null)
+  const leanGroupRef = useRef<THREE.Group>(null)
+  const leftLegPivotRef = useRef<THREE.Group>(null)
+  const rightLegPivotRef = useRef<THREE.Group>(null)
+  const leanAngleRef = useRef(0)
+  const legAmplitudeRef = useRef(0)
+  const legPhaseRef = useRef(0)
+  const teardropGeometry = useMemo(() => createTeardropGeometry(), [])
   const nativeColor = useMemo(() => colorForOwner('player'), [])
   const displayColorRef = useRef(new THREE.Color(nativeColor))
   const yawRef = useRef(0)
@@ -294,8 +341,27 @@ export function PlayerController() {
         playerTransform.position.x *= scale
         playerTransform.position.z *= scale
       }
+
+      // Sprint posture: lean deeper and pump the legs faster/wider while
+      // actually translating; ease straight back to neutral the instant
+      // Chent stops or gets rooted, rather than snapping.
+      const isActivelyMoving = hasInput && !isRooted
+      const leanTarget = isActivelyMoving ? (wantsSprint ? LEAN_ANGLE_SPRINT : LEAN_ANGLE_WALK) : 0
+      leanAngleRef.current = THREE.MathUtils.lerp(leanAngleRef.current, leanTarget, 1 - Math.exp(-LEAN_SMOOTHING * delta))
+
+      const legAmplitudeTarget = isActivelyMoving ? LEG_SWING_MAX : 0
+      legAmplitudeRef.current = THREE.MathUtils.lerp(
+        legAmplitudeRef.current,
+        legAmplitudeTarget,
+        1 - Math.exp(-LEG_SWING_SMOOTHING * delta),
+      )
+      if (isActivelyMoving) {
+        legPhaseRef.current += delta * (wantsSprint ? LEG_CYCLE_RATE_SPRINT : LEG_CYCLE_RATE_WALK)
+      }
     } else {
       wasPlayingRef.current = false
+      leanAngleRef.current = 0
+      legAmplitudeRef.current = 0
     }
 
     playerTransform.yaw = yaw
@@ -318,6 +384,20 @@ export function PlayerController() {
       bodyMaterialRef.current.color.copy(displayColorRef.current)
     }
 
+    // Sprint lean (negative X tips the top toward -Z, i.e. forward) and the
+    // opposite-phase leg swing — both smoothed refs computed above, applied
+    // here regardless of phase so they also ease back to neutral at the
+    // Start/Game Over screens instead of freezing mid-stride.
+    if (leanGroupRef.current) {
+      leanGroupRef.current.rotation.x = -leanAngleRef.current
+    }
+    if (leftLegPivotRef.current) {
+      leftLegPivotRef.current.rotation.x = Math.sin(legPhaseRef.current) * legAmplitudeRef.current
+    }
+    if (rightLegPivotRef.current) {
+      rightLegPivotRef.current.rotation.x = Math.sin(legPhaseRef.current + Math.PI) * legAmplitudeRef.current
+    }
+
     const camDist = CAMERA_DISTANCE * Math.cos(pitchRef.current)
     const camHeight = CAMERA_HEIGHT + CAMERA_DISTANCE * Math.sin(pitchRef.current)
     const desiredCamPos = new THREE.Vector3(
@@ -337,21 +417,50 @@ export function PlayerController() {
 
   return (
     <group ref={bodyRef}>
-      {/* Chameleon body — its material color chases either the exact color
-       * of whatever it's camouflaged against, or its own native hue while
-       * showing true colors (see the lerp in useFrame above). */}
-      <mesh position={[0, 0.9, 0]} castShadow>
-        <capsuleGeometry args={[PLAYER_HITBOX_RADIUS, 1.0, 6, 12]} />
-        <meshStandardMaterial ref={bodyMaterialRef} color={nativeColor} roughness={0.5} metalness={0.15} />
-      </mesh>
-      {/* Glowing visor: a fixed identity marker so the player can still be
-       * told apart from the Bot even while both are camouflaged to the
-       * same item color. */}
-      <mesh position={[0, 1.35, -0.4]}>
-        <boxGeometry args={[0.34, 0.09, 0.06]} />
-        <meshStandardMaterial color="#22e0ff" emissive="#22e0ff" emissiveIntensity={4.5} toneMapped={false} />
-      </mesh>
-      <pointLight position={[0, 1.4, -0.3]} color="#22e0ff" intensity={1.6} distance={4.5} decay={2} />
+      {/* Chent: a hyper-agile chameleon runner. Everything above the hips
+       * lives in leanGroup, pitched forward into a sprint lean; the torso's
+       * material color chases either the exact color of whatever it's
+       * camouflaged against, or its own native hue while showing true
+       * colors (see the lerp in useFrame above). */}
+      <group ref={leanGroupRef}>
+        <mesh geometry={teardropGeometry} position={[0, TORSO_Y, 0]} castShadow>
+          <meshStandardMaterial ref={bodyMaterialRef} color={nativeColor} roughness={0.45} metalness={0.15} />
+        </mesh>
+
+        {/* Glowing visor: a fixed identity marker so the player can still
+         * be told apart from the Bot even while both are camouflaged to
+         * the same item color. */}
+        <mesh position={[0, TORSO_Y + 0.42, -0.3]}>
+          <boxGeometry args={[0.34, 0.09, 0.06]} />
+          <meshStandardMaterial color="#22e0ff" emissive="#22e0ff" emissiveIntensity={4.5} toneMapped={false} />
+        </mesh>
+        <pointLight position={[0, TORSO_Y + 0.45, -0.3]} color="#22e0ff" intensity={1.6} distance={4.5} decay={2} />
+
+        {/* Track-pants legs: a snappy opposite-phase sine swing while
+         * moving, eased back to a dead stop the instant Chent idles or
+         * gets rooted — see the amplitude/phase refs driven in useFrame. */}
+        <group ref={leftLegPivotRef} position={[-HIP_OFFSET, HIP_Y, 0]}>
+          <mesh position={[0, -UPPER_LEG_LENGTH / 2, 0]} castShadow>
+            <cylinderGeometry args={[0.1, 0.09, UPPER_LEG_LENGTH, 8]} />
+            <meshStandardMaterial color="#22212b" roughness={0.6} />
+          </mesh>
+          <mesh position={[0, -UPPER_LEG_LENGTH - SHOE_LENGTH / 2, 0]} castShadow>
+            <cylinderGeometry args={[0.11, 0.1, SHOE_LENGTH, 8]} />
+            <meshStandardMaterial color="#4b4b57" roughness={0.5} />
+          </mesh>
+        </group>
+        <group ref={rightLegPivotRef} position={[HIP_OFFSET, HIP_Y, 0]}>
+          <mesh position={[0, -UPPER_LEG_LENGTH / 2, 0]} castShadow>
+            <cylinderGeometry args={[0.1, 0.09, UPPER_LEG_LENGTH, 8]} />
+            <meshStandardMaterial color="#22212b" roughness={0.6} />
+          </mesh>
+          <mesh position={[0, -UPPER_LEG_LENGTH - SHOE_LENGTH / 2, 0]} castShadow>
+            <cylinderGeometry args={[0.11, 0.1, SHOE_LENGTH, 8]} />
+            <meshStandardMaterial color="#4b4b57" roughness={0.5} />
+          </mesh>
+        </group>
+      </group>
+
       <PositionalAudio ref={audioRef} url={SHOUT_SOUND_URL} distance={AUDIO_REFERENCE_DISTANCE} loop={false} />
     </group>
   )

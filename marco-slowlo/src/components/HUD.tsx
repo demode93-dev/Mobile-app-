@@ -115,7 +115,7 @@ function StartOverlay() {
         <h1 className="text-3xl font-semibold tracking-tight text-white">
           PET STORE <span className="text-fuchsia-400">BREAK OUT</span>
         </h1>
-        <p className="mt-2 text-sm text-white/60">Blend in, or get spotted.</p>
+        <p className="mt-2 text-sm text-white/60">You're Chent — blend in, or get spotted.</p>
 
         <div className="mt-6 space-y-2 text-left text-sm text-white/70">
           <p>
