@@ -113,9 +113,9 @@ function StartOverlay() {
     <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div className="max-w-md rounded-2xl border border-white/10 bg-[#0b0912]/90 p-8 text-center shadow-[0_0_60px_rgba(124,58,237,0.25)]">
         <h1 className="text-3xl font-semibold tracking-tight text-white">
-          MARCO <span className="text-fuchsia-400">SLOW</span>-LO
+          PET STORE <span className="text-fuchsia-400">BREAK OUT</span>
         </h1>
-        <p className="mt-2 text-sm text-white/60">Bonkers Pet Store — blend in, or get spotted.</p>
+        <p className="mt-2 text-sm text-white/60">Blend in, or get spotted.</p>
 
         <div className="mt-6 space-y-2 text-left text-sm text-white/70">
           <p>
