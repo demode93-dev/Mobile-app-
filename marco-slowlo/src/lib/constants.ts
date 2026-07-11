@@ -1,10 +1,15 @@
-/** Tuning knobs for the core "outrun your own voice" loop. */
+/** Tuning knobs for the core Pet Store Break Out loop: movement, the
+ * Sensory Pulse threat wave, and Chent's camouflage. */
 
-/** Walking speed, m/s — also the fixed growth rate of every sound bubble. */
+/** Walking speed, m/s. */
 export const WALK_SPEED = 3.0
 
-/** Sprint speed, m/s — must exceed WALK_SPEED or a shout is unsurvivable. */
-export const SPRINT_SPEED = 6.0
+/** Sprint speed, m/s — tuned high for a hyper-agile feel. Movement itself
+ * has no velocity/momentum (see the position update in PlayerController /
+ * Bots: it's a direct `position += dx * speed * delta` every frame, nothing
+ * else), so releasing input already stops Chent dead on a dime regardless
+ * of how high this number goes. */
+export const SPRINT_SPEED = 9.0
 
 /** How fast the player/camera turns to face input direction, in 1/s (lerp rate). */
 export const TURN_SMOOTHING = 12
@@ -32,7 +37,16 @@ export const STAMINA_SPRINT_MIN = 0.08
 /** Seconds between allowed shouts. */
 export const SHOUT_COOLDOWN = 2.2
 
-/** A shout bubble despawns once its wavefront reaches this radius, in meters. */
+/**
+ * Fixed growth rate of every Sensory Pulse wavefront, in m/s — deliberately
+ * its own tunable rather than reusing WALK_SPEED, and deliberately slow:
+ * the survival check is "find a matching color and camouflage," not "outrun
+ * the wave," so this needs to stay a manageable pace that gives a real
+ * window to read the pulse, spot an obstacle, and react.
+ */
+export const SENSORY_PULSE_GROWTH_RATE = 2.0
+
+/** A Sensory Pulse despawns once its wavefront reaches this radius, in meters. */
 export const BUBBLE_MAX_RADIUS = 34
 
 /** Half-extent of the square arena floor, in meters. */
@@ -67,8 +81,8 @@ export const SHOUT_ROOT_DURATION = 0.5
  */
 export const TAG_IMMUNITY_DURATION = 0.3
 
-/** Length of a match, in seconds. */
-export const MATCH_DURATION = 60
+/** Length of a match, in seconds — a strict 3:00 round. */
+export const MATCH_DURATION = 180
 
 /**
  * Distance, in meters, within which the hunting bot commits to a shout

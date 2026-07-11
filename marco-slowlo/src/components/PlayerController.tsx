@@ -9,10 +9,11 @@ import { actionTrigger, touchMoveVector } from '../lib/input'
 import { colorForOwner } from '../lib/colors'
 import { distanceToPillarSurface, nearestPillar } from '../lib/physics'
 import { COVER_PILLARS } from '../lib/pillars'
+import { getLevel } from '../lib/levels'
+import '../shaders/CamouflageWashMaterial'
 import {
   ARENA_HALF_SIZE,
   AUDIO_REFERENCE_DISTANCE,
-  CAMOUFLAGE_LERP_RATE,
   CAMOUFLAGE_RANGE,
   MAX_FRAME_DELTA,
   PLAYER_HITBOX_RADIUS,
@@ -54,8 +55,6 @@ const HIP_Y = 0.62
 const UPPER_LEG_LENGTH = 0.42
 const SHOE_LENGTH = 0.2
 const TORSO_Y = HIP_Y + 0.55
-
-const scratchColor = new THREE.Color()
 
 interface KeyState {
   forward: boolean
@@ -100,7 +99,7 @@ export function PlayerController() {
   const { camera, gl } = useThree()
   const phase = useGameStore((s) => s.phase)
   const bodyRef = useRef<THREE.Group>(null)
-  const bodyMaterialRef = useRef<THREE.MeshStandardMaterial>(null)
+  const bodyMaterialRef = useRef<any>(null)
   const leanGroupRef = useRef<THREE.Group>(null)
   const leftLegPivotRef = useRef<THREE.Group>(null)
   const rightLegPivotRef = useRef<THREE.Group>(null)
@@ -109,7 +108,13 @@ export function PlayerController() {
   const legPhaseRef = useRef(0)
   const teardropGeometry = useMemo(() => createTeardropGeometry(), [])
   const nativeColor = useMemo(() => colorForOwner('player'), [])
-  const displayColorRef = useRef(new THREE.Color(nativeColor))
+  // Camouflage wash-over state: "from"/"to" are the two colors the current
+  // sweep is traveling between, and washProgress (0-1) is how far along it
+  // is — see the wash block in useFrame and CamouflageWashMaterial.
+  const washFromColorRef = useRef(new THREE.Color(nativeColor))
+  const washTargetColorRef = useRef(new THREE.Color(nativeColor))
+  const washTargetHexRef = useRef(nativeColor)
+  const washProgressRef = useRef(1)
   const yawRef = useRef(0)
   const pitchRef = useRef(0.22)
   const bodyYawRef = useRef(0)
@@ -254,6 +259,7 @@ export function PlayerController() {
     const {
       phase,
       currentItId,
+      levelIndex,
       stamina,
       shoutCooldownRemaining,
       setStamina,
@@ -329,6 +335,9 @@ export function PlayerController() {
         bodyYawRef.current += shortestAngleDelta(bodyYawRef.current, targetBodyYaw) * Math.min(1, TURN_SMOOTHING * delta)
       }
 
+      // No velocity to integrate — position moves only while hasInput is
+      // true, by exactly this frame's distance, so releasing input (or
+      // getting rooted) stops Chent dead the very next frame. No slide.
       if (hasInput && !isRooted) {
         playerTransform.position.x += dx * speed * delta
         playerTransform.position.z += dz * speed * delta
@@ -375,13 +384,26 @@ export function PlayerController() {
       bodyRef.current.rotation.y = bodyYawRef.current
     }
 
-    // Chase whatever color we're currently supposed to be (camouflaged or
-    // native) — the logical camouflageColor itself updates instantly on a
-    // button press; only the VISUAL transition is smoothed here.
+    // Camouflage wash-over: the logical camouflageColor itself updates
+    // instantly on a button press (that's what the survival check reads —
+    // see SoundBubbleManager), but the VISUAL transition is a traveling
+    // color-swap sweep, not a snap or a uniform blend. A change of target
+    // restarts the sweep using whatever we were already washing toward as
+    // the new "from", so back-to-back matches don't pop; its duration is
+    // level-tuned (moderate on Floor 1, faster on higher floors).
     const targetColorHex = playerTransform.camouflageColor ?? nativeColor
-    displayColorRef.current.lerp(scratchColor.set(targetColorHex), 1 - Math.exp(-CAMOUFLAGE_LERP_RATE * delta))
+    if (targetColorHex !== washTargetHexRef.current) {
+      washFromColorRef.current.copy(washTargetColorRef.current)
+      washTargetColorRef.current.set(targetColorHex)
+      washTargetHexRef.current = targetColorHex
+      washProgressRef.current = 0
+    }
+    const washDuration = getLevel(levelIndex).camouflageWashDuration
+    washProgressRef.current = Math.min(1, washProgressRef.current + delta / washDuration)
     if (bodyMaterialRef.current) {
-      bodyMaterialRef.current.color.copy(displayColorRef.current)
+      bodyMaterialRef.current.uFromColor = washFromColorRef.current
+      bodyMaterialRef.current.uToColor = washTargetColorRef.current
+      bodyMaterialRef.current.uProgress = washProgressRef.current
     }
 
     // Sprint lean (negative X tips the top toward -Z, i.e. forward) and the
@@ -419,12 +441,13 @@ export function PlayerController() {
     <group ref={bodyRef}>
       {/* Chent: a hyper-agile chameleon runner. Everything above the hips
        * lives in leanGroup, pitched forward into a sprint lean; the torso's
-       * material color chases either the exact color of whatever it's
-       * camouflaged against, or its own native hue while showing true
-       * colors (see the lerp in useFrame above). */}
+       * material washes, bottom-to-top, toward either the exact color of
+       * whatever it's camouflaged against or its own native hue while
+       * showing true colors (see the wash block in useFrame above and
+       * CamouflageWashMaterial). */}
       <group ref={leanGroupRef}>
         <mesh geometry={teardropGeometry} position={[0, TORSO_Y, 0]} castShadow>
-          <meshStandardMaterial ref={bodyMaterialRef} color={nativeColor} roughness={0.45} metalness={0.15} />
+          <camouflageWashMaterial ref={bodyMaterialRef} uFromColor={nativeColor} uToColor={nativeColor} uProgress={1} />
         </mesh>
 
         {/* Glowing visor: a fixed identity marker so the player can still

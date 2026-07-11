@@ -6,9 +6,9 @@ import {
   BOT_ID,
   BUBBLE_MAX_RADIUS,
   MATCH_DURATION,
+  SENSORY_PULSE_GROWTH_RATE,
   SHOUT_COOLDOWN,
   TAG_IMMUNITY_DURATION,
-  WALK_SPEED,
 } from '../lib/constants'
 import { LEVELS } from '../lib/levels'
 
@@ -118,7 +118,7 @@ export const useGameStore = create<GameState>((set) => ({
           ownerId,
           origin: { x: origin.x, y: origin.y, z: origin.z },
           originTime: now,
-          growthRate: WALK_SPEED,
+          growthRate: SENSORY_PULSE_GROWTH_RATE,
           maxRadius: BUBBLE_MAX_RADIUS,
         },
       ],

@@ -131,7 +131,7 @@ function StartOverlay() {
             The Bot starts as the sweeper. Stand next to a fish tank, food bags, or a scratching
             post and hit the button to match its EXACT color — a Sensory Pulse passes harmlessly
             over a perfect match. Wrong color, or caught out in the open, and you're tagged.
-            Survive the 60-second sweep to clear the floor and take the elevator up — each one
+            Survive the 3-minute sweep to clear the floor and take the elevator up — each one
             packs the shelves tighter and speeds up the sweep. Get tagged and it's back to Floor 1.
           </p>
         </div>

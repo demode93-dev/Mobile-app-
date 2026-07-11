@@ -14,6 +14,11 @@ export interface LevelConfig {
   spacingMultiplier: number
   /** Multiplies every one of the Bot's movement speeds. */
   botSpeedMultiplier: number
+  /** Seconds for Chent's camouflage wash-over (see CamouflageWashMaterial)
+   * to fully sweep from one color to the next on this floor — moderate on
+   * Floor 1, progressively snappier on higher floors as everything else
+   * speeds up too. */
+  camouflageWashDuration: number
 }
 
 export const LEVELS: LevelConfig[] = [
@@ -22,18 +27,21 @@ export const LEVELS: LevelConfig[] = [
     pillarCount: 42,
     spacingMultiplier: 1,
     botSpeedMultiplier: 1,
+    camouflageWashDuration: 0.6,
   },
   {
     name: 'Floor 2',
     pillarCount: 58,
     spacingMultiplier: 0.82,
     botSpeedMultiplier: 1.12,
+    camouflageWashDuration: 0.42,
   },
   {
     name: 'Floor 3',
     pillarCount: 76,
     spacingMultiplier: 0.68,
     botSpeedMultiplier: 1.25,
+    camouflageWashDuration: 0.28,
   },
 ]
 
