@@ -22,7 +22,6 @@ import {
   STAMINA_MAX,
   STAMINA_REGEN_TIME,
   STAMINA_SPRINT_MIN,
-  TOUCH_SPRINT_DEFLECTION,
   TURN_SMOOTHING,
   WALK_SPEED,
 } from '../lib/constants'
@@ -317,10 +316,13 @@ export function PlayerController() {
         dz /= len
       }
 
-      // No separate sprint button on touch: shoving the joystick to near
-      // full deflection sprints instead, same as holding Shift.
+      // No separate sprint button on touch: touchMoveVector is already
+      // deadzone-gated to exactly (0, 0) for thumb drift (see
+      // JOYSTICK_DEADZONE / TouchControls), so ANY nonzero deflection here
+      // is a deliberate push — that alone immediately counts as full
+      // sprint intent, same as holding Shift, with no separate walk tier.
       const touchDeflection = Math.hypot(touchMoveVector.x, touchMoveVector.y)
-      const sprintHeld = sprint || touchDeflection >= TOUCH_SPRINT_DEFLECTION
+      const sprintHeld = sprint || touchDeflection > 0
       const wantsSprint = !isRooted && sprintHeld && hasInput && stamina > STAMINA_SPRINT_MIN
       const speed = wantsSprint ? SPRINT_SPEED : WALK_SPEED
 

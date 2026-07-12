@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import { actionTrigger, touchMoveVector } from '../lib/input'
+import { actionTrigger, applyJoystickDeadzone, touchMoveVector } from '../lib/input'
+import { JOYSTICK_DEADZONE } from '../lib/constants'
 import { useGameStore } from '../store/gameStore'
 
 const JOYSTICK_RADIUS = 55
@@ -35,8 +36,14 @@ function Joystick() {
       dx = (dx / dist) * JOYSTICK_RADIUS
       dy = (dy / dist) * JOYSTICK_RADIUS
     }
-    touchMoveVector.x = dx / JOYSTICK_RADIUS
-    touchMoveVector.y = -dy / JOYSTICK_RADIUS // screen Y grows downward; forward is an upward drag
+    // Deadzone gates the LOGICAL input only (touchMoveVector) — the knob
+    // below still visually tracks the raw thumb position for tactile
+    // feedback even while sitting inside the dead center.
+    const normalizedX = dx / JOYSTICK_RADIUS
+    const normalizedY = -dy / JOYSTICK_RADIUS // screen Y grows downward; forward is an upward drag
+    const gated = applyJoystickDeadzone(normalizedX, normalizedY, JOYSTICK_DEADZONE)
+    touchMoveVector.x = gated.x
+    touchMoveVector.y = gated.y
     return { knobX: origin.x + dx, knobY: origin.y + dy }
   }
 

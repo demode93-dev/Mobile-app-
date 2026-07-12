@@ -15,12 +15,15 @@ export const SPRINT_SPEED = 9.0
 export const TURN_SMOOTHING = 12
 
 /**
- * There's no separate sprint button on touch — pushing the joystick past
- * this fraction of its max radius sprints instead, the common mobile
- * convention ("push harder to run"). Still gated by the same stamina rule
- * as Shift on keyboard; this only decides intent.
+ * Joystick radial deadzone, as a fraction of max deflection (0-1). Thumb
+ * micro-drift inside this radius is treated as exactly zero input, so a
+ * resting thumb can't edge Chent forward or quietly walk him out of
+ * camouflage range. There's no separate "walk" tier on touch past this
+ * point — any real push immediately counts as full sprint intent (see
+ * PlayerController), for a hyper-responsive, all-or-nothing evasion feel.
+ * Still gated by the same stamina rule as Shift on keyboard.
  */
-export const TOUCH_SPRINT_DEFLECTION = 0.9
+export const JOYSTICK_DEADZONE = 0.15
 
 /** Radius of the player's own collision hitbox, in meters. */
 export const PLAYER_HITBOX_RADIUS = 0.45

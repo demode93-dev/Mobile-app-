@@ -21,3 +21,17 @@ export const touchMoveVector = { x: 0, y: 0 }
  * Sensory Pulse while hunting, a camouflage attempt while evading.
  */
 export const actionTrigger = { current: () => {} }
+
+/**
+ * Radial deadzone for an analog stick vector: magnitudes strictly inside
+ * `deadzone` (a fraction of max deflection, 0-1) collapse to exactly
+ * (0, 0) — a resting or barely-drifting thumb produces zero game input,
+ * not a faint one. Anything at or past the deadzone passes through
+ * completely unchanged (no rescale): speed is a binary walk/sprint choice
+ * downstream, not proportional to deflection, so there's nothing for a
+ * rescaled range to buy here.
+ */
+export function applyJoystickDeadzone(x: number, y: number, deadzone: number): { x: number; y: number } {
+  if (Math.hypot(x, y) < deadzone) return { x: 0, y: 0 }
+  return { x, y }
+}
