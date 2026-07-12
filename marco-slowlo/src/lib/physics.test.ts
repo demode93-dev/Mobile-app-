@@ -5,6 +5,7 @@ import {
   clearanceFromBubble,
   distance3,
   distanceToPillarSurface,
+  findGrappleAnchor,
   findHidingSpot,
   isBubbleExpired,
   isLineOfSightBlocked,
@@ -252,6 +253,63 @@ describe('nearestPillar / distanceToPillarSurface (camouflage targeting)', () =>
   it('distanceToPillarSurface goes negative once the point is inside the pillar radius', () => {
     const p = pillar({ x: 0, z: 0, radius: 2 })
     expect(distanceToPillarSurface({ x: 1, y: 0, z: 0 }, p)).toBeCloseTo(-1)
+  })
+})
+
+describe('findGrappleAnchor (tail-grapple targeting)', () => {
+  function pillar(overrides: Partial<CoverPillar> = {}): CoverPillar {
+    return { x: 0, z: 0, radius: 1, color: '#000000', ...overrides }
+  }
+
+  it('returns null with no pillars at all', () => {
+    expect(findGrappleAnchor({ x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: -1 }, [], 20, 1.5, 5.5)).toBeNull()
+  })
+
+  it('hits a pillar dead ahead within range and height band', () => {
+    const pillars = [pillar({ x: 0, z: -10, radius: 1 })]
+    const hit = findGrappleAnchor({ x: 0, y: 3, z: 0 }, { x: 0, y: 0, z: -1 }, pillars, 20, 1.5, 5.5)
+    expect(hit).not.toBeNull()
+    expect(hit!.z).toBeCloseTo(-9) // near edge of the radius-1 pillar
+    expect(hit!.y).toBeCloseTo(3) // horizontal ray keeps the same height
+  })
+
+  it('misses a pillar off to the side', () => {
+    const pillars = [pillar({ x: 8, z: -10, radius: 1 })]
+    const hit = findGrappleAnchor({ x: 0, y: 3, z: 0 }, { x: 0, y: 0, z: -1 }, pillars, 20, 1.5, 5.5)
+    expect(hit).toBeNull()
+  })
+
+  it('rejects a hit beyond maxRange', () => {
+    const pillars = [pillar({ x: 0, z: -10, radius: 1 })]
+    const hit = findGrappleAnchor({ x: 0, y: 3, z: 0 }, { x: 0, y: 0, z: -1 }, pillars, 5, 1.5, 5.5)
+    expect(hit).toBeNull()
+  })
+
+  it('rejects a hit whose height is below minHeight (would be grabbing the floor)', () => {
+    const pillars = [pillar({ x: 0, z: -10, radius: 1 })]
+    // Normalized (0, -0.6, -0.8): steep enough that the XZ-plane hit point
+    // (still ~10-11m out) lands well below the floor by the time it arrives.
+    const hit = findGrappleAnchor({ x: 0, y: 3, z: 0 }, { x: 0, y: -0.6, z: -0.8 }, pillars, 20, 1.5, 5.5)
+    expect(hit).toBeNull()
+  })
+
+  it('rejects a hit whose height exceeds the pillar itself', () => {
+    const pillars = [pillar({ x: 0, z: -10, radius: 1 })]
+    const hit = findGrappleAnchor({ x: 0, y: 3, z: 0 }, { x: 0, y: 1, z: -1 }, pillars, 30, 1.5, 5.5)
+    expect(hit).toBeNull()
+  })
+
+  it('picks the nearest of multiple candidate pillars along the same ray', () => {
+    const pillars = [pillar({ x: 0, z: -18, radius: 1 }), pillar({ x: 0, z: -8, radius: 1 })]
+    const hit = findGrappleAnchor({ x: 0, y: 3, z: 0 }, { x: 0, y: 0, z: -1 }, pillars, 30, 1.5, 5.5)
+    expect(hit).not.toBeNull()
+    expect(hit!.z).toBeCloseTo(-7)
+  })
+
+  it('does not crash on a straight-up/down ray (degenerate XZ direction)', () => {
+    const pillars = [pillar({ x: 0, z: -10, radius: 1 })]
+    const hit = findGrappleAnchor({ x: 0, y: 3, z: 0 }, { x: 0, y: 1, z: 0 }, pillars, 20, 1.5, 5.5)
+    expect(hit).toBeNull()
   })
 })
 

@@ -124,3 +124,25 @@ export const AUDIO_REFERENCE_DISTANCE = 5
  * different timelines under frame-rate hitches. See lib/world.ts (gameClock).
  */
 export const MAX_FRAME_DELTA = 0.05
+
+/** Max distance, in meters, the grapple raycast will find an anchor at. */
+export const GRAPPLE_MAX_RANGE = 16
+
+/** Minimum height, in meters, a grapple hit must land at — keeps the tail
+ * from "grabbing" the floor at point-blank range. */
+export const GRAPPLE_MIN_HEIGHT = 1.6
+
+/** Upward tilt, in radians, blended into the aim direction so a level-aimed
+ * grapple attempt naturally targets elevated anchors ahead rather than
+ * needing the player to physically look upward first. */
+export const GRAPPLE_AIM_PITCH = 0.55
+
+/** Max length of the rope joint connecting Chent to a grapple anchor, as a
+ * fraction of the actual distance measured at the moment of attachment —
+ * slightly under 1 so the "rope" is taut from the first frame instead of
+ * needing to fall slack before it engages. */
+export const GRAPPLE_ROPE_SLACK_FACTOR = 0.97
+
+/** World-space Y at or below which a free-flying (post-release) swing is
+ * considered landed, handing control back to kinematic ground movement. */
+export const GRAPPLE_LANDING_Y = 0.05

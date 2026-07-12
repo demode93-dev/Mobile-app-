@@ -29,6 +29,17 @@ export const playerTransform: ActorTransform = {
   camouflageColor: null,
 }
 
+/**
+ * Chent's current ground-movement velocity (m/s, world space), written
+ * every frame by PlayerController's kinematic WASD block. The kinematic
+ * movement itself never needs a persistent velocity (see the "no slide"
+ * comment in PlayerController) — this exists purely so the tail-grapple
+ * swing (GrappleController) can seed its physics body's initial velocity
+ * from whatever Chent was doing the instant he grabbed on, per "preserve
+ * running velocity as he enters the swing."
+ */
+export const playerVelocity = new THREE.Vector3(0, 0, 0)
+
 const botTransforms = new Map<string, ActorTransform>()
 
 export function getBotTransform(id: string): ActorTransform {

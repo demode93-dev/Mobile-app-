@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { actionTrigger, applyJoystickDeadzone, touchMoveVector } from '../lib/input'
+import { actionTrigger, applyJoystickDeadzone, grappleInputHeld, touchMoveVector } from '../lib/input'
 import { JOYSTICK_DEADZONE } from '../lib/constants'
 import { useGameStore } from '../store/gameStore'
 
@@ -160,12 +160,51 @@ function ActionButton() {
   )
 }
 
+/** Tail-grapple: a hold button, not a tap trigger — grappleInputHeld stays
+ * true for as long as a finger is down, exactly like KeyE on keyboard.
+ * GrappleController polls it every frame to attempt/maintain/release a
+ * swing; releasing (up/leave/cancel) always clears it, same as key-up. */
+function GrappleButton() {
+  const [pressed, setPressed] = useState(false)
+
+  function handlePointerDown(e: React.PointerEvent) {
+    e.preventDefault()
+    setPressed(true)
+    grappleInputHeld.current = true
+  }
+
+  function release() {
+    setPressed(false)
+    grappleInputHeld.current = false
+  }
+
+  return (
+    <div className="pointer-events-none absolute bottom-36 right-10">
+      <button
+        type="button"
+        aria-label="Tail grapple"
+        className={`pointer-events-auto h-20 w-20 touch-none select-none rounded-full border-2 border-white/40 text-sm font-black tracking-widest text-white shadow-[0_0_30px_rgba(139,92,246,0.5)] transition-transform ${
+          pressed ? 'scale-90 bg-violet-400' : 'scale-100 bg-violet-500'
+        }`}
+        onPointerDown={handlePointerDown}
+        onPointerUp={release}
+        onPointerLeave={release}
+        onPointerCancel={release}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        TAIL
+      </button>
+    </div>
+  )
+}
+
 /** Only meaningful during active play — the Start/Game Over overlays have
  * their own buttons and cover the whole screen anyway. */
 export function TouchControls() {
   return (
     <div className="absolute inset-0">
       <Joystick />
+      <GrappleButton />
       <ActionButton />
     </div>
   )

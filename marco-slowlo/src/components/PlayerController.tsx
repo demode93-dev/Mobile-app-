@@ -3,10 +3,10 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { PositionalAudio } from '@react-three/drei'
 import * as THREE from 'three'
 import { useGameStore } from '../store/gameStore'
-import { gameClock, playerTransform } from '../lib/world'
+import { gameClock, playerTransform, playerVelocity } from '../lib/world'
 import { playShout, SHOUT_SOUND_URL, unlockAudio } from '../lib/audio'
-import { actionTrigger, touchMoveVector } from '../lib/input'
-import { colorForOwner } from '../lib/colors'
+import { actionTrigger, grappleInputHeld, grappleState, touchMoveVector } from '../lib/input'
+import { colorForOwner, TAIL_ACCENT_COLOR } from '../lib/colors'
 import { distanceToPillarSurface, nearestPillar } from '../lib/physics'
 import { COVER_PILLARS } from '../lib/pillars'
 import { getLevel } from '../lib/levels'
@@ -55,6 +55,32 @@ const UPPER_LEG_LENGTH = 0.42
 const SHOE_LENGTH = 0.2
 const TORSO_Y = HIP_Y + 0.55
 
+const TAIL_BASE_RADIUS = 0.1
+const TAIL_TIP_RADIUS = 0.055
+const TAIL_CURVE_SPLIT = 0.6
+const TAIL_ATTACH_Y = TORSO_Y - 0.35
+const TAIL_ATTACH_Z = 0.4
+const TAIL_STRETCH_SEGMENTS = 14
+const TAIL_STRETCH_RADIUS = 0.075
+const TAIL_ATTACH_LOCAL_OFFSET = new THREE.Vector3(0, TAIL_ATTACH_Y, TAIL_ATTACH_Z)
+
+const scratchTailWorldOrigin = new THREE.Vector3()
+const scratchAnchorLocal = new THREE.Vector3()
+const scratchBezierMid = new THREE.Vector3()
+const TAIL_STRETCH_ORIGIN = new THREE.Vector3(0, 0, 0)
+
+/** Rotates a vector around the world Y axis by `angle` radians — matches
+ * Three.js's own Object3D rotation.y convention exactly, so it can stand in
+ * for a full scene-graph worldToLocal/localToWorld conversion using just
+ * the yaw angle we already track, no matrixWorld timing games mid-frame. */
+function rotateAroundY(v: THREE.Vector3, angle: number, out: THREE.Vector3): THREE.Vector3 {
+  const cos = Math.cos(angle)
+  const sin = Math.sin(angle)
+  const x = v.x * cos + v.z * sin
+  const z = -v.x * sin + v.z * cos
+  return out.set(x, v.y, z)
+}
+
 interface KeyState {
   forward: boolean
   back: boolean
@@ -88,6 +114,39 @@ function createTeardropGeometry(): THREE.LatheGeometry {
   return new THREE.LatheGeometry(points, 20)
 }
 
+/** Sample points for Chent's resting tail: a spiral that tightens turn
+ * over turn (radius shrinking toward the tip) sampled in a single local
+ * plane, so viewed from behind — where the follow camera sits — it reads
+ * as a proper curled chameleon tail rather than a flat disc. */
+function createTailSpiralPoints(): THREE.Vector3[] {
+  const points: THREE.Vector3[] = []
+  const turns = 1.4
+  const steps = 28
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    const angle = t * Math.PI * 2 * turns
+    const radius = 0.46 * (1 - t * 0.85)
+    points.push(new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0))
+  }
+  return points
+}
+
+/** Builds the resting curled tail as two tube segments sharing one spiral
+ * curve — a thicker base and a thinner tip — instead of one constant-radius
+ * tube, so it tapers toward the point without needing per-vertex radius
+ * support from TubeGeometry. Both stay lightweight, low-segment-count
+ * procedural geometry, same spirit as the lathed torso. */
+function createTailSpiralGeometries(): { base: THREE.TubeGeometry; tip: THREE.TubeGeometry } {
+  const points = createTailSpiralPoints()
+  const splitIndex = Math.floor(points.length * TAIL_CURVE_SPLIT)
+  const baseCurve = new THREE.CatmullRomCurve3(points.slice(0, splitIndex + 1))
+  const tipCurve = new THREE.CatmullRomCurve3(points.slice(splitIndex))
+  return {
+    base: new THREE.TubeGeometry(baseCurve, 16, TAIL_BASE_RADIUS, 8, false),
+    tip: new THREE.TubeGeometry(tipCurve, 12, TAIL_TIP_RADIUS, 8, false),
+  }
+}
+
 /** Third-person rig for Chent, the player's chameleon runner: pointer-lock
  * mouse look, WASD movement relative to camera yaw, hold-to-sprint with a
  * stamina budget, and one dual-purpose action trigger (Sensory Pulse while
@@ -106,6 +165,9 @@ export function PlayerController() {
   const legAmplitudeRef = useRef(0)
   const legPhaseRef = useRef(0)
   const teardropGeometry = useMemo(() => createTeardropGeometry(), [])
+  const tailGeometries = useMemo(() => createTailSpiralGeometries(), [])
+  const curledTailGroupRef = useRef<THREE.Group>(null)
+  const tailStretchRef = useRef<THREE.Mesh>(null)
   const nativeColor = useMemo(() => colorForOwner('player'), [])
   // Camouflage wash-over state: "from"/"to" are the two colors the current
   // sweep is traveling between, and washProgress (0-1) is how far along it
@@ -180,6 +242,13 @@ export function PlayerController() {
           e.preventDefault()
           triggerAction()
           break
+        case 'KeyE':
+          // Hold to grapple — Shift is already sprint, so this gets its own
+          // key. GrappleController polls grappleInputHeld every frame
+          // rather than reacting to a discrete press, since a swing needs
+          // to know "is it still held" continuously, not just "was pressed".
+          grappleInputHeld.current = true
+          break
       }
     }
     function onKeyUp(e: KeyboardEvent) {
@@ -203,6 +272,9 @@ export function PlayerController() {
         case 'ShiftLeft':
         case 'ShiftRight':
           keys.current.sprint = false
+          break
+        case 'KeyE':
+          grappleInputHeld.current = false
           break
       }
     }
@@ -300,74 +372,87 @@ export function PlayerController() {
         setRooted(isRooted)
       }
 
-      const { forward, back, left, right, sprint } = keys.current
-      // Keyboard and the touch joystick just add into the same input axes —
-      // whichever the player is using (or both at once), the rest of the
-      // movement/root/stamina logic below doesn't need to know which.
-      const inputForward = (forward ? 1 : 0) - (back ? 1 : 0) + touchMoveVector.y
-      const inputRight = (right ? 1 : 0) - (left ? 1 : 0) + touchMoveVector.x
-      const hasInput = Math.abs(inputForward) > 0.0001 || Math.abs(inputRight) > 0.0001
+      // While the tail-grapple is swinging (or free-flying after release),
+      // GrappleController owns playerTransform.position entirely — this
+      // whole kinematic WASD block stands down rather than fighting it.
+      if (!grappleState.active) {
+        const { forward, back, left, right, sprint } = keys.current
+        // Keyboard and the touch joystick just add into the same input axes —
+        // whichever the player is using (or both at once), the rest of the
+        // movement/root/stamina logic below doesn't need to know which.
+        const inputForward = (forward ? 1 : 0) - (back ? 1 : 0) + touchMoveVector.y
+        const inputRight = (right ? 1 : 0) - (left ? 1 : 0) + touchMoveVector.x
+        const hasInput = Math.abs(inputForward) > 0.0001 || Math.abs(inputRight) > 0.0001
 
-      let dx = inputForward * forwardX + inputRight * rightX
-      let dz = inputForward * forwardZ + inputRight * rightZ
-      const len = Math.hypot(dx, dz)
-      if (len > 0.0001) {
-        dx /= len
-        dz /= len
-      }
+        let dx = inputForward * forwardX + inputRight * rightX
+        let dz = inputForward * forwardZ + inputRight * rightZ
+        const len = Math.hypot(dx, dz)
+        if (len > 0.0001) {
+          dx /= len
+          dz /= len
+        }
 
-      // No separate sprint button on touch: touchMoveVector is already
-      // deadzone-gated to exactly (0, 0) for thumb drift (see
-      // JOYSTICK_DEADZONE / TouchControls), so ANY nonzero deflection here
-      // is a deliberate push — that alone immediately counts as full
-      // sprint intent, same as holding Shift, with no separate walk tier.
-      const touchDeflection = Math.hypot(touchMoveVector.x, touchMoveVector.y)
-      const sprintHeld = sprint || touchDeflection > 0
-      const wantsSprint = !isRooted && sprintHeld && hasInput && stamina > STAMINA_SPRINT_MIN
-      const speed = wantsSprint ? SPRINT_SPEED : WALK_SPEED
+        // No separate sprint button on touch: touchMoveVector is already
+        // deadzone-gated to exactly (0, 0) for thumb drift (see
+        // JOYSTICK_DEADZONE / TouchControls), so ANY nonzero deflection here
+        // is a deliberate push — that alone immediately counts as full
+        // sprint intent, same as holding Shift, with no separate walk tier.
+        const touchDeflection = Math.hypot(touchMoveVector.x, touchMoveVector.y)
+        const sprintHeld = sprint || touchDeflection > 0
+        const wantsSprint = !isRooted && sprintHeld && hasInput && stamina > STAMINA_SPRINT_MIN
+        const speed = wantsSprint ? SPRINT_SPEED : WALK_SPEED
 
-      if (wantsSprint) {
-        setStamina(stamina - delta / STAMINA_MAX)
+        if (wantsSprint) {
+          setStamina(stamina - delta / STAMINA_MAX)
+        } else {
+          setStamina(stamina + delta / STAMINA_REGEN_TIME)
+        }
+
+        if (hasInput) {
+          const targetBodyYaw = Math.atan2(-dx, -dz)
+          bodyYawRef.current += shortestAngleDelta(bodyYawRef.current, targetBodyYaw) * Math.min(1, TURN_SMOOTHING * delta)
+        }
+
+        // No velocity to integrate — position moves only while hasInput is
+        // true, by exactly this frame's distance, so releasing input (or
+        // getting rooted) stops Chent dead the very next frame. No slide.
+        if (hasInput && !isRooted) {
+          playerTransform.position.x += dx * speed * delta
+          playerTransform.position.z += dz * speed * delta
+        }
+
+        const distFromCenter = Math.hypot(playerTransform.position.x, playerTransform.position.z)
+        const maxDist = ARENA_HALF_SIZE - PLAYER_HITBOX_RADIUS
+        if (distFromCenter > maxDist) {
+          const scale = maxDist / distFromCenter
+          playerTransform.position.x *= scale
+          playerTransform.position.z *= scale
+        }
+
+        // Track current velocity so a grapple grabbed the instant after
+        // this frame can seed its swing with the momentum Chent already had.
+        playerVelocity.set(dx * speed, 0, dz * speed)
+
+        // Sprint posture: lean deeper and pump the legs faster/wider while
+        // actually translating; ease straight back to neutral the instant
+        // Chent stops or gets rooted, rather than snapping.
+        const isActivelyMoving = hasInput && !isRooted
+        const leanTarget = isActivelyMoving ? (wantsSprint ? LEAN_ANGLE_SPRINT : LEAN_ANGLE_WALK) : 0
+        leanAngleRef.current = THREE.MathUtils.lerp(leanAngleRef.current, leanTarget, 1 - Math.exp(-LEAN_SMOOTHING * delta))
+
+        const legAmplitudeTarget = isActivelyMoving ? LEG_SWING_MAX : 0
+        legAmplitudeRef.current = THREE.MathUtils.lerp(
+          legAmplitudeRef.current,
+          legAmplitudeTarget,
+          1 - Math.exp(-LEG_SWING_SMOOTHING * delta),
+        )
+        if (isActivelyMoving) {
+          legPhaseRef.current += delta * (wantsSprint ? LEG_CYCLE_RATE_SPRINT : LEG_CYCLE_RATE_WALK)
+        }
       } else {
-        setStamina(stamina + delta / STAMINA_REGEN_TIME)
-      }
-
-      if (hasInput) {
-        const targetBodyYaw = Math.atan2(-dx, -dz)
-        bodyYawRef.current += shortestAngleDelta(bodyYawRef.current, targetBodyYaw) * Math.min(1, TURN_SMOOTHING * delta)
-      }
-
-      // No velocity to integrate — position moves only while hasInput is
-      // true, by exactly this frame's distance, so releasing input (or
-      // getting rooted) stops Chent dead the very next frame. No slide.
-      if (hasInput && !isRooted) {
-        playerTransform.position.x += dx * speed * delta
-        playerTransform.position.z += dz * speed * delta
-      }
-
-      const distFromCenter = Math.hypot(playerTransform.position.x, playerTransform.position.z)
-      const maxDist = ARENA_HALF_SIZE - PLAYER_HITBOX_RADIUS
-      if (distFromCenter > maxDist) {
-        const scale = maxDist / distFromCenter
-        playerTransform.position.x *= scale
-        playerTransform.position.z *= scale
-      }
-
-      // Sprint posture: lean deeper and pump the legs faster/wider while
-      // actually translating; ease straight back to neutral the instant
-      // Chent stops or gets rooted, rather than snapping.
-      const isActivelyMoving = hasInput && !isRooted
-      const leanTarget = isActivelyMoving ? (wantsSprint ? LEAN_ANGLE_SPRINT : LEAN_ANGLE_WALK) : 0
-      leanAngleRef.current = THREE.MathUtils.lerp(leanAngleRef.current, leanTarget, 1 - Math.exp(-LEAN_SMOOTHING * delta))
-
-      const legAmplitudeTarget = isActivelyMoving ? LEG_SWING_MAX : 0
-      legAmplitudeRef.current = THREE.MathUtils.lerp(
-        legAmplitudeRef.current,
-        legAmplitudeTarget,
-        1 - Math.exp(-LEG_SWING_SMOOTHING * delta),
-      )
-      if (isActivelyMoving) {
-        legPhaseRef.current += delta * (wantsSprint ? LEG_CYCLE_RATE_SPRINT : LEG_CYCLE_RATE_WALK)
+        playerVelocity.set(0, 0, 0)
+        leanAngleRef.current = 0
+        legAmplitudeRef.current = 0
       }
     } else {
       wasPlayingRef.current = false
@@ -422,6 +507,35 @@ export function PlayerController() {
       rightLegPivotRef.current.rotation.x = Math.sin(legPhaseRef.current + Math.PI) * legAmplitudeRef.current
     }
 
+    // Tail-grapple visual: while actually anchored, the curled resting
+    // tail is hidden and a stretched tube is rebuilt every frame from the
+    // tail's attach point to the grapple anchor — snapping back to the
+    // curled spiral the instant grappleState.attached goes false (input
+    // released), even if Chent is still mid-launch. bodyYawRef.current is
+    // frozen for the whole swing (the WASD block that changes it stands
+    // down), so a pure yaw-based rotation does the same job as a full
+    // scene-graph worldToLocal conversion without any matrixWorld timing
+    // concerns mid-frame.
+    if (curledTailGroupRef.current) {
+      curledTailGroupRef.current.visible = !grappleState.attached
+    }
+    if (tailStretchRef.current) {
+      tailStretchRef.current.visible = grappleState.attached
+      if (grappleState.attached) {
+        rotateAroundY(TAIL_ATTACH_LOCAL_OFFSET, bodyYawRef.current, scratchTailWorldOrigin)
+        scratchTailWorldOrigin.add(playerTransform.position)
+        scratchAnchorLocal.copy(grappleState.anchorPoint).sub(scratchTailWorldOrigin)
+        rotateAroundY(scratchAnchorLocal, -bodyYawRef.current, scratchAnchorLocal)
+
+        scratchBezierMid.copy(scratchAnchorLocal).multiplyScalar(0.5)
+        scratchBezierMid.y += 0.3
+        const curve = new THREE.QuadraticBezierCurve3(TAIL_STRETCH_ORIGIN, scratchBezierMid, scratchAnchorLocal)
+        const oldGeometry = tailStretchRef.current.geometry
+        tailStretchRef.current.geometry = new THREE.TubeGeometry(curve, TAIL_STRETCH_SEGMENTS, TAIL_STRETCH_RADIUS, 8, false)
+        oldGeometry.dispose()
+      }
+    }
+
     const camDist = CAMERA_DISTANCE * Math.cos(pitchRef.current)
     const camHeight = CAMERA_HEIGHT + CAMERA_DISTANCE * Math.sin(pitchRef.current)
     const desiredCamPos = new THREE.Vector3(
@@ -463,11 +577,17 @@ export function PlayerController() {
 
         {/* Track-pants legs: a snappy opposite-phase sine swing while
          * moving, eased back to a dead stop the instant Chent idles or
-         * gets rooted — see the amplitude/phase refs driven in useFrame. */}
+         * gets rooted — see the amplitude/phase refs driven in useFrame.
+         * Each has a white athletic side-stripe breaking up the two-tone
+         * color blocking. */}
         <group ref={leftLegPivotRef} position={[-HIP_OFFSET, HIP_Y, 0]}>
           <mesh position={[0, -UPPER_LEG_LENGTH / 2, 0]} castShadow>
             <cylinderGeometry args={[0.1, 0.09, UPPER_LEG_LENGTH, 8]} />
             <meshStandardMaterial color="#22212b" roughness={0.6} />
+          </mesh>
+          <mesh position={[-0.095, -UPPER_LEG_LENGTH / 2, 0]}>
+            <boxGeometry args={[0.025, UPPER_LEG_LENGTH * 0.95, 0.05]} />
+            <meshStandardMaterial color="#f5f5f5" roughness={0.4} />
           </mesh>
           <mesh position={[0, -UPPER_LEG_LENGTH - SHOE_LENGTH / 2, 0]} castShadow>
             <cylinderGeometry args={[0.11, 0.1, SHOE_LENGTH, 8]} />
@@ -479,11 +599,39 @@ export function PlayerController() {
             <cylinderGeometry args={[0.1, 0.09, UPPER_LEG_LENGTH, 8]} />
             <meshStandardMaterial color="#22212b" roughness={0.6} />
           </mesh>
+          <mesh position={[0.095, -UPPER_LEG_LENGTH / 2, 0]}>
+            <boxGeometry args={[0.025, UPPER_LEG_LENGTH * 0.95, 0.05]} />
+            <meshStandardMaterial color="#f5f5f5" roughness={0.4} />
+          </mesh>
           <mesh position={[0, -UPPER_LEG_LENGTH - SHOE_LENGTH / 2, 0]} castShadow>
             <cylinderGeometry args={[0.11, 0.1, SHOE_LENGTH, 8]} />
             <meshStandardMaterial color="#4b4b57" roughness={0.5} />
           </mesh>
         </group>
+
+        {/* Curled tail: a fixed violet accent (not camouflage-washed — only
+         * the torso participates in the color-match survival check) that,
+         * together with the teal-green torso, gives Chent his green-teal-
+         * purple palette. Hidden in favor of the stretched grapple-line
+         * mesh below while actually anchored to a tail-swing point. */}
+        <group ref={curledTailGroupRef} position={[0, TAIL_ATTACH_Y, TAIL_ATTACH_Z]}>
+          <mesh geometry={tailGeometries.base} castShadow>
+            <meshStandardMaterial color={TAIL_ACCENT_COLOR} roughness={0.4} metalness={0.15} />
+          </mesh>
+          <mesh geometry={tailGeometries.tip} castShadow>
+            <meshStandardMaterial color={TAIL_ACCENT_COLOR} roughness={0.4} metalness={0.15} />
+          </mesh>
+        </group>
+
+        {/* Stretched grapple-line tail: invisible until attached, then its
+         * geometry is rebuilt every frame as a QuadraticBezierCurve3 from
+         * this same attach point to the anchor (see the tail-grapple block
+         * in useFrame above). The tiny placeholder sphere below is only
+         * ever visible for a single frame at most, if at all. */}
+        <mesh ref={tailStretchRef} position={[0, TAIL_ATTACH_Y, TAIL_ATTACH_Z]} visible={false} castShadow>
+          <sphereGeometry args={[0.01, 4, 4]} />
+          <meshStandardMaterial color={TAIL_ACCENT_COLOR} roughness={0.4} metalness={0.15} />
+        </mesh>
       </group>
 
       <PositionalAudio ref={audioRef} url={SHOUT_SOUND_URL} distance={AUDIO_REFERENCE_DISTANCE} loop={false} />

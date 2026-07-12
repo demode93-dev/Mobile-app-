@@ -173,6 +173,56 @@ export function distanceToPillarSurface(position: Vec3Like, pillar: CoverPillar)
 }
 
 /**
+ * Ray-vs-vertical-cylinder intersection against every pillar (pet-store
+ * item), used to find a valid tail-grapple anchor. `direction` MUST be
+ * normalized — the intersection parameter `t` is used directly as a
+ * distance. Each pillar is treated as an infinite vertical cylinder in the
+ * XZ plane; a hit only counts if it lands within `maxRange` and its height
+ * falls inside [minHeight, pillarHeight] (high enough to read as "grabbing
+ * a tall shelf," not the floor, and no higher than the shelf actually is).
+ * Returns the closest qualifying grip point, or null if nothing qualifies.
+ */
+export function findGrappleAnchor(
+  origin: Vec3Like,
+  direction: Vec3Like,
+  pillars: CoverPillar[],
+  maxRange: number,
+  minHeight: number,
+  pillarHeight: number,
+): Vec3Like | null {
+  let best: Vec3Like | null = null
+  let bestDist = Infinity
+
+  for (const pillar of pillars) {
+    const ox = origin.x - pillar.x
+    const oz = origin.z - pillar.z
+    const a = direction.x * direction.x + direction.z * direction.z
+    if (a < 1e-8) continue // ray points straight up/down — can't cross a vertical cylinder's side
+
+    const b = 2 * (ox * direction.x + oz * direction.z)
+    const c = ox * ox + oz * oz - pillar.radius * pillar.radius
+    const discriminant = b * b - 4 * a * c
+    if (discriminant < 0) continue // ray misses this pillar entirely
+
+    const sqrtDisc = Math.sqrt(discriminant)
+    const t1 = (-b - sqrtDisc) / (2 * a)
+    const t2 = (-b + sqrtDisc) / (2 * a)
+    const t = t1 >= 0 ? t1 : t2 >= 0 ? t2 : -1 // smallest non-negative root = entering the cylinder
+    if (t < 0 || t > maxRange) continue
+
+    const hitY = origin.y + direction.y * t
+    if (hitY < minHeight || hitY > pillarHeight) continue
+
+    if (t < bestDist) {
+      bestDist = t
+      best = { x: origin.x + direction.x * t, y: hitY, z: origin.z + direction.z * t }
+    }
+  }
+
+  return best
+}
+
+/**
  * Picks the best nearby "hiding spot" for someone fleeing `threatPos`: for
  * every pillar, the point just beyond it on the far side from the threat
  * (i.e. in that pillar's acoustic/visual shadow), then returns whichever

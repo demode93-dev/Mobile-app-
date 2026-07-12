@@ -127,6 +127,11 @@ function StartOverlay() {
             <kbd className="rounded bg-white/10 px-1.5 py-0.5 text-xs">CLICK</kbd> — while sweeping,
             emits a Sensory Pulse; while blending in, camouflages against the nearest item
           </p>
+          <p>
+            Hold <kbd className="rounded bg-white/10 px-1.5 py-0.5 text-xs">E</kbd> aimed at a tall
+            shelf to grapple it with your tail and swing — release to launch onward with your
+            momentum
+          </p>
           <p className="text-white/50">
             The Bot starts as the sweeper. Stand next to a fish tank, food bags, or a scratching
             post and hit the button to match its EXACT color — a Sensory Pulse passes harmlessly

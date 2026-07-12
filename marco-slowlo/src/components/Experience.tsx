@@ -1,4 +1,5 @@
 import { Environment, Lightformer } from '@react-three/drei'
+import { Physics } from '@react-three/rapier'
 import { Arena, ArenaFog } from './Arena'
 import { GameClockDriver } from './GameClockDriver'
 import { PlayerController } from './PlayerController'
@@ -7,6 +8,7 @@ import { SoundBubbleManager } from './SoundBubbleManager'
 import { Bots } from './Bots'
 import { CoverPillars } from './CoverPillars'
 import { Effects } from './Effects'
+import { GrappleController } from './GrappleController'
 import { useGameStore } from '../store/gameStore'
 
 /** Everything that lives inside the <Canvas>. Kept separate from App.tsx so
@@ -71,6 +73,14 @@ export function Experience() {
       <PlayerController />
       <Bots key={`bots-${levelIndex}`} />
       <SoundBubbleManager />
+
+      {/* Only the tail-grapple swing touches Rapier at all — ordinary
+       * ground movement (PlayerController/Bots) stays fully kinematic and
+       * never enters this physics world. GrappleController's ghost body
+       * only exists for the duration of a swing/free-flight arc. */}
+      <Physics>
+        <GrappleController />
+      </Physics>
 
       <Effects />
     </>
