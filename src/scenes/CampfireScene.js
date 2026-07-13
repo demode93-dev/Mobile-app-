@@ -2,11 +2,11 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, SAFE_BOTTOM, DEPTH, RARITY } from '../utils/constants.js';
 
 const RARITY_TEXTURE = { [RARITY.COMMON]: 'card_common', [RARITY.RARE]: 'card_rare', [RARITY.LEGENDARY]: 'card_legendary' };
-const RARITY_COLOR = { [RARITY.COMMON]: '#b0b0a8', [RARITY.RARE]: '#eaf2ff', [RARITY.LEGENDARY]: '#e0a934' };
-// Rare cards use a darker blue-grey frame, so their name/desc need light text;
-// common (tan parchment) and legendary (gold parchment) read fine with dark ink.
-const NAME_COLOR = { [RARITY.COMMON]: '#1a1a1a', [RARITY.RARE]: '#ffffff', [RARITY.LEGENDARY]: '#1a1a1a' };
-const DESC_COLOR = { [RARITY.COMMON]: '#1a1a1a', [RARITY.RARE]: '#ffeebb', [RARITY.LEGENDARY]: '#1a1a1a' };
+const RARITY_COLOR = { [RARITY.COMMON]: '#8a7050', [RARITY.RARE]: '#2f4468', [RARITY.LEGENDARY]: '#8a5a0a' };
+// All three card frames are light parchment tones, so every rarity reads fine
+// with dark ink text.
+const NAME_COLOR = { [RARITY.COMMON]: '#1a1a1a', [RARITY.RARE]: '#1a1a1a', [RARITY.LEGENDARY]: '#1a1a1a' };
+const DESC_COLOR = { [RARITY.COMMON]: '#1a1a1a', [RARITY.RARE]: '#1a1a1a', [RARITY.LEGENDARY]: '#1a1a1a' };
 
 export default class CampfireScene extends Phaser.Scene {
   constructor() {
