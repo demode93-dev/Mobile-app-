@@ -16,6 +16,25 @@ export const GRID_OFFSET_Y = 180;
 export const HERO_START_ROW = 2;
 export const HERO_START_COL = 2;
 
+// ---------------------------------------------------------------------------
+// Isometric board projection
+// ---------------------------------------------------------------------------
+// The board renders as a diamond: each tile is a square sprite visually
+// rotated 45deg, laid out on isometric axes rather than a flat row/col grid.
+export const ISO_TILE_WIDTH = TILE_SIZE;
+export const ISO_TILE_HEIGHT = TILE_SIZE;
+export const ISO_OFFSET_X = GAME_WIDTH / 2;
+export const ISO_OFFSET_Y = 200;
+
+// Single source of truth for row/col -> screen position, shared by the board,
+// hero, and enemies so everything lines up on the same diamond grid.
+export function gridToScreen(row, col) {
+  return {
+    x: ISO_OFFSET_X + (col - row) * (ISO_TILE_WIDTH / 2),
+    y: ISO_OFFSET_Y + (col + row) * (ISO_TILE_HEIGHT / 2)
+  };
+}
+
 // Colors that can appear as normal, matchable board tiles.
 // 'brown' is reserved for a disguised Mimic and is never part of the random refill pool.
 export const BOARD_TILE_COLORS = ['red', 'blue', 'purple', 'green'];

@@ -1,4 +1,4 @@
-import { GRID_OFFSET_X, GRID_OFFSET_Y, TILE_SIZE, HERO_BASE_HP, HERO_START_ROW, HERO_START_COL } from '../utils/constants.js';
+import { gridToScreen, HERO_BASE_HP, HERO_START_ROW, HERO_START_COL } from '../utils/constants.js';
 
 // The hero's grid cell is mostly flavor for adjacency checks: after each
 // ability resolves, the hero token animates to the nearest open cell next to
@@ -33,10 +33,7 @@ export default class Hero {
   }
 
   pixelPosition(row = this.row, col = this.col) {
-    return {
-      x: GRID_OFFSET_X + col * TILE_SIZE + TILE_SIZE / 2,
-      y: GRID_OFFSET_Y + row * TILE_SIZE + TILE_SIZE / 2
-    };
+    return gridToScreen(row, col);
   }
 
   moveTo(row, col) {

@@ -1,4 +1,4 @@
-import { GRID_OFFSET_X, GRID_OFFSET_Y, TILE_SIZE, GRID_SIZE } from '../utils/constants.js';
+import { GRID_SIZE, gridToScreen } from '../utils/constants.js';
 
 // Base class for all enemy types. Subclasses implement act(context) for their
 // enemy-phase AI and may override onTakeDamage for special reactions (Mimic).
@@ -26,10 +26,7 @@ export default class Enemy {
   }
 
   pixelPosition(row = this.row, col = this.col) {
-    return {
-      x: GRID_OFFSET_X + col * TILE_SIZE + TILE_SIZE / 2,
-      y: GRID_OFFSET_Y + row * TILE_SIZE + TILE_SIZE / 2
-    };
+    return gridToScreen(row, col);
   }
 
   distanceTo(entity) {
