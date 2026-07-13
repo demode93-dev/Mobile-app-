@@ -108,15 +108,16 @@ export default class CombatManager {
     return { ability: 'sword', targets, damage };
   }
 
-  resolveShield() {
+  async resolveShield() {
     const block = ABILITY_BASE.shield.block + this.mod('shieldBlock') + (this.modifiers.dungeonMaster ? 1 : 0);
     const duration = 1 + this.mod('blockDurationBonus') + (this.modifiers.ironWall ? 1 : 0);
     this.hero.addBlock(block, duration);
     this.log(`Shield tile grants ${block} Block.`);
+    await this.repeatIfTimeWarp(() => this.hero.addBlock(block, duration));
     return { ability: 'shield', block };
   }
 
-  resolveMagic(matchedCells) {
+  async resolveMagic(matchedCells) {
     const enemies = this.livingEnemies();
     if (enemies.length === 0) return null;
 
@@ -149,10 +150,13 @@ export default class CombatManager {
     if (this.modifiers.arcaneEchoChance && Math.random() < this.modifiers.arcaneEchoChance) {
       for (const t of targets) if (!t.isDead) this.strikeEnemy(t, damage, 'magic');
     }
+    await this.repeatIfTimeWarp(() => {
+      for (const t of targets) if (!t.isDead) this.strikeEnemy(t, damage, 'magic');
+    });
     return { ability: 'magic', targets, damage };
   }
 
-  resolvePotion() {
+  async resolvePotion() {
     let heal = ABILITY_BASE.potion.heal + this.mod('potionHeal') + (this.modifiers.dungeonMaster ? 1 : 0);
     let block = 0;
     if (this.modifiers.battlePriest) {
@@ -162,6 +166,7 @@ export default class CombatManager {
     const healed = this.hero.heal(heal);
     if (block) this.hero.addBlock(block, 1);
     this.log(`Potion tile heals ${healed} HP.`);
+    await this.repeatIfTimeWarp(() => this.hero.heal(heal));
     return { ability: 'potion', healed };
   }
 
