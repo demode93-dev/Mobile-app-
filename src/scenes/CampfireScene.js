@@ -31,9 +31,6 @@ export default class CampfireScene extends Phaser.Scene {
   buildCard(x, y, card, width) {
     const texture = RARITY_TEXTURE[card.rarity];
     const img = this.add.image(x, y, texture).setDisplaySize(width, 150).setInteractive({ useHandCursor: true });
-    // card_rare reuses the campfire_card art (no dedicated rare frame yet) - a
-    // blue-grey tint keeps it visually distinct from the untinted legendary/common frames.
-    if (card.rarity === RARITY.RARE) img.setTint(0xccccff);
     const name = this.add.text(x, y - 55, card.name, { fontSize: '12px', color: '#1a1a1a', fontStyle: 'bold', align: 'center', wordWrap: { width: width - 10 } }).setOrigin(0.5);
     const desc = this.add.text(x, y - 5, card.desc, { fontSize: '10px', color: '#1a1a1a', align: 'center', wordWrap: { width: width - 14 } }).setOrigin(0.5);
     const rarity = this.add.text(x, y + 62, card.rarity.toUpperCase(), { fontSize: '10px', color: RARITY_COLOR[card.rarity], fontStyle: 'bold' }).setOrigin(0.5);
