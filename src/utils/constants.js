@@ -208,7 +208,7 @@ export const JOURNAL_NODE_MODIFIERS = {
   '2C': { ironWall: true },
   '2F': { damageCap: 5 },
   '3A': { magicDamage: 1 },
-  '3D': { torchlight: true },
+  '3D': { scoutTraining: true },
   '3B': { potionHeal: 1 },
   '3E': { campfireCardCount: 4 },
   '3C': { chainLightning: true },

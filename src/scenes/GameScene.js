@@ -125,6 +125,8 @@ export default class GameScene extends Phaser.Scene {
     if (this.board) this.board.destroy();
     this.enemies.forEach(e => e.destroy());
     this.enemies = [];
+    (this.scoutMarkers || []).forEach(m => m.destroy());
+    this.scoutMarkers = [];
 
     this.board = new BoardManager(this);
     this.combatManager = new CombatManager(this, this.hero, () => this.enemies, this.upgradeManager.modifiers);
@@ -141,10 +143,29 @@ export default class GameScene extends Phaser.Scene {
     this.hero.blockTurnsLeft = this.hero.block > 0 ? 1 : 0;
 
     this.spawnEnemiesForDepth(depth);
+    this.applyScoutTraining();
     this.wireBoardInput();
     this.turnManager.resetDepthFlags();
     this.refreshHud();
     this.setLog(`Depth ${depth} - ${this.enemies.length} foes lurk ahead.`);
+  }
+
+  // Journal node 3D: reveal one randomly-chosen enemy type actually present
+  // this depth with a small marker above each of them, and a log callout.
+  // Distinct from the Torchlight camp card, which only ever reveals Mimics.
+  applyScoutTraining() {
+    if (!this.upgradeManager.modifiers.scoutTraining || this.enemies.length === 0) return;
+    const types = [...new Set(this.enemies.map(e => e.type))];
+    const scoutedType = Phaser.Utils.Array.GetRandom(types);
+    const scoutedEnemies = this.enemies.filter(e => e.type === scoutedType);
+    for (const enemy of scoutedEnemies) {
+      const { x, y } = enemy.pixelPosition();
+      const marker = this.add.text(x, y - 40, '\u{1F441}', { fontSize: '16px' }).setOrigin(0.5).setDepth(DEPTH.FLOATING_TEXT);
+      this.scoutMarkers.push(marker);
+    }
+    this.time.delayedCall(50, () => {
+      this.setLog(`Scout Training: ${ENEMY_STATS[scoutedType].name} detected ahead.`);
+    });
   }
 
   spawnEnemiesForDepth(depth) {
