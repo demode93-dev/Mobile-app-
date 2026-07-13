@@ -99,7 +99,8 @@ export async function getLeaderboard() {
 }
 
 // ---------------------------------------------------------------------------
-// Monetization (Second Wind ad revive, cash-out, payments)
+// Rewarded ads (Second Wind revive) - standard ad-network monetization, no
+// real money changes hands between players.
 // ---------------------------------------------------------------------------
 export async function verifyAdReward(adToken) {
   try {
@@ -107,21 +108,5 @@ export async function verifyAdReward(adToken) {
   } catch (e) {
     // Offline: trust the client-side ad-complete callback so "Second Wind" still works in dev/offline play.
     return { ok: true, offline: true };
-  }
-}
-
-export async function createPaymentIntent(amountCents) {
-  try {
-    return await callFunction('create-payment-intent', { method: 'POST', body: { amountCents } });
-  } catch (e) {
-    return { ok: false, offline: true, message: 'Payments unavailable offline.' };
-  }
-}
-
-export async function cashOutGems(gemAmount) {
-  try {
-    return await callFunction('cash-out-gems', { method: 'POST', body: { gemAmount } });
-  } catch (e) {
-    return { ok: false, offline: true, message: 'Cash-out unavailable offline.' };
   }
 }

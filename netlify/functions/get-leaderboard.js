@@ -1,5 +1,6 @@
 // Returns today's top 100 Daily Dungeon Dive scores, ranked, with the top
-// 10% flagged as prize-eligible.
+// 10% flagged as reward-eligible. Rewards are virtual currency only (Insight
+// + Gems) - no cash value, no payout processing.
 const faunadb = require('faunadb');
 
 const q = faunadb.query;
@@ -12,15 +13,15 @@ function assignPrizes(entries) {
   const prizeCount = Math.max(1, Math.ceil(entries.length * 0.1));
   return entries.map((entry, i) => ({
     ...entry,
-    prize: i < prizeCount ? prizeForRank(i) : ''
+    reward: i < prizeCount ? rewardForRank(i) : null
   }));
 }
 
-function prizeForRank(index) {
-  if (index === 0) return '$50';
-  if (index < 3) return '$20';
-  if (index < 10) return '$5';
-  return '$1';
+function rewardForRank(index) {
+  if (index === 0) return { insight: 100, gems: 50 };
+  if (index < 3) return { insight: 50, gems: 25 };
+  if (index < 10) return { insight: 25, gems: 10 };
+  return { insight: 10, gems: 5 };
 }
 
 exports.handler = async () => {

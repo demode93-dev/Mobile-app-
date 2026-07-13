@@ -11,8 +11,7 @@
   },
   "dependencies": {
     "phaser": "^3.70.0",
-    "faunadb": "^4.8.0",
-    "stripe": "^14.25.0"
+    "faunadb": "^4.8.0"
   },
   "devDependencies": {
     "vite": "^5.4.0"

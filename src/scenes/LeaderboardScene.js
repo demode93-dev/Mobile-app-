@@ -52,7 +52,8 @@ export default class LeaderboardScene extends Phaser.Scene {
       const rank = this.add.text(30, y, `#${entry.rank}`, { fontSize: '13px', color: '#3a2013', fontStyle: 'bold' });
       const name = this.add.text(80, y, entry.name, { fontSize: '13px', color: '#3a2013' });
       const depth = this.add.text(230, y, `Depth ${entry.depth}`, { fontSize: '12px', color: '#5b3a1e' });
-      const prize = this.add.text(GAME_WIDTH - 40, y, entry.prize || '', { fontSize: '12px', color: '#8a5a0a', fontStyle: 'bold' }).setOrigin(1, 0);
+      const rewardLabel = entry.reward ? `${entry.reward.insight} INS / ${entry.reward.gems} GEM` : '';
+      const prize = this.add.text(GAME_WIDTH - 40, y, rewardLabel, { fontSize: '11px', color: '#8a5a0a', fontStyle: 'bold' }).setOrigin(1, 0);
       this.listContainer.add([bg, rank, name, depth, prize]);
     });
 
@@ -71,7 +72,7 @@ export default class LeaderboardScene extends Phaser.Scene {
       name,
       depth: 20 - i * 2,
       score: (20 - i * 2) * 100,
-      prize: i === 0 ? '$50' : (i < 2 ? '$10' : '')
+      reward: i === 0 ? { insight: 100, gems: 50 } : (i < 2 ? { insight: 50, gems: 25 } : null)
     }));
   }
 }
