@@ -2,6 +2,7 @@
 // game is completely playable offline / without a deployed backend.
 
 import { STORAGE_KEYS } from './constants.js';
+import { seedFromDate } from './rng.js';
 
 const FUNCTIONS_BASE = '/.netlify/functions';
 const NETWORK_TIMEOUT_MS = 4000;
@@ -71,12 +72,11 @@ export async function getDailyDungeon() {
     return await callFunction('get-daily-dungeon');
   } catch (e) {
     const cached = readLocal(STORAGE_KEYS.DAILY_DUNGEON_CACHE, null);
-    if (cached && cached.date === new Date().toISOString().slice(0, 10)) return cached;
-    const generated = {
-      date: new Date().toISOString().slice(0, 10),
-      seed: Math.floor(Math.random() * 1e9),
-      offline: true
-    };
+    const dateKey = new Date().toISOString().slice(0, 10);
+    if (cached && cached.date === dateKey) return cached;
+    // Offline: derive the same deterministic seed the server would, so an
+    // offline player still gets today's shared dungeon, not a private one.
+    const generated = { date: dateKey, seed: seedFromDate(dateKey), offline: true };
     writeLocal(STORAGE_KEYS.DAILY_DUNGEON_CACHE, generated);
     return generated;
   }

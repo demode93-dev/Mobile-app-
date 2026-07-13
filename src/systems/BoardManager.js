@@ -8,8 +8,11 @@ import {
 // permanently 'brown' and treated as fixed obstacles - gravity flows around
 // them like a blocker tile in a typical match-3 game.
 export default class BoardManager {
-  constructor(scene) {
+  // `rng` is an optional createSeededRng() instance (see utils/rng.js). When
+  // omitted, falls back to Math.random() for normal (non-tournament) play.
+  constructor(scene, rng = null) {
     this.scene = scene;
+    this.rng = rng;
     this.grid = [];
     this.sprites = [];
     this.blockedCells = new Set(); // "row,col" strings currently held by a disguised Mimic
@@ -30,7 +33,8 @@ export default class BoardManager {
   }
 
   randomColor() {
-    return BOARD_TILE_COLORS[Math.floor(Math.random() * BOARD_TILE_COLORS.length)];
+    const roll = this.rng ? this.rng() : Math.random();
+    return BOARD_TILE_COLORS[Math.floor(roll * BOARD_TILE_COLORS.length)];
   }
 
   buildInitialGrid() {

@@ -4,8 +4,11 @@ import { UPGRADE_POOL, RARITY_WEIGHTS } from '../utils/constants.js';
 // (passed in as baseModifiers, never mutated here) merged with camp upgrade
 // cards drafted during this run (which do stack).
 export default class UpgradeManager {
-  constructor(baseModifiers = {}) {
+  // `rng` is an optional createSeededRng() instance (see utils/rng.js). When
+  // omitted, falls back to Math.random() for normal (non-tournament) play.
+  constructor(baseModifiers = {}, rng = null) {
     this.baseModifiers = baseModifiers;
+    this.rng = rng;
     this.runCards = [];
     this.modifiers = { ...baseModifiers };
     this.campfireRedrawUsed = false; // Grand Arcanist: once per run, not per depth
@@ -25,7 +28,7 @@ export default class UpgradeManager {
   weightedPick(pool) {
     const weighted = pool.map(card => ({ card, weight: RARITY_WEIGHTS[card.rarity] }));
     const total = weighted.reduce((s, w) => s + w.weight, 0);
-    let roll = Math.random() * total;
+    let roll = (this.rng ? this.rng() : Math.random()) * total;
     for (const w of weighted) {
       roll -= w.weight;
       if (roll <= 0) return w.card;

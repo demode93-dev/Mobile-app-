@@ -5,6 +5,7 @@ import {
   getSpawnTableForDepth, computeJournalModifiers, computeInsightEarned
 } from '../utils/constants.js';
 import { saveJournal } from '../utils/api.js';
+import { createSeededRng } from '../utils/rng.js';
 import BoardManager from '../systems/BoardManager.js';
 import CombatManager from '../systems/CombatManager.js';
 import TurnManager from '../systems/TurnManager.js';
@@ -28,6 +29,14 @@ export default class GameScene extends Phaser.Scene {
     this.depth = data.reviveDepth || 1;
     this.enemiesKilled = 0;
     this.enemies = [];
+    // Daily Dungeon mode: every draw that shapes the run (board layout,
+    // cascade refills, enemy spawns, camp card draws) comes from one seeded
+    // stream instead of Math.random(), so the same seed produces the same
+    // dungeon for every player - and, given the same move history, can be
+    // reproduced by a server-side replay for score validation.
+    this.isDailyDungeon = !!data.dailyDungeonSeed;
+    this.dailyDungeonSeed = data.dailyDungeonSeed || null;
+    this.rng = this.isDailyDungeon ? createSeededRng(this.dailyDungeonSeed) : null;
   }
 
   create() {
@@ -35,7 +44,7 @@ export default class GameScene extends Phaser.Scene {
 
     const unlockedNodes = Object.keys(this.registry.get('journalNodes') || {});
     const baseModifiers = computeJournalModifiers(unlockedNodes);
-    this.upgradeManager = new UpgradeManager(baseModifiers);
+    this.upgradeManager = new UpgradeManager(baseModifiers, this.rng);
     this.hero = new Hero(this, this.upgradeManager.modifiers);
     this.phoenixDownAvailable = !!this.upgradeManager.modifiers.phoenixDown;
 
@@ -128,7 +137,7 @@ export default class GameScene extends Phaser.Scene {
     (this.scoutMarkers || []).forEach(m => m.destroy());
     this.scoutMarkers = [];
 
-    this.board = new BoardManager(this);
+    this.board = new BoardManager(this, this.rng);
     this.combatManager = new CombatManager(this, this.hero, () => this.enemies, this.upgradeManager.modifiers);
     this.turnManager = new TurnManager(this, {
       board: this.board,
@@ -156,7 +165,7 @@ export default class GameScene extends Phaser.Scene {
   applyScoutTraining() {
     if (!this.upgradeManager.modifiers.scoutTraining || this.enemies.length === 0) return;
     const types = [...new Set(this.enemies.map(e => e.type))];
-    const scoutedType = Phaser.Utils.Array.GetRandom(types);
+    const scoutedType = this.rng ? this.rng.pick(types) : Phaser.Utils.Array.GetRandom(types);
     const scoutedEnemies = this.enemies.filter(e => e.type === scoutedType);
     for (const enemy of scoutedEnemies) {
       const { x, y } = enemy.pixelPosition();
@@ -181,12 +190,13 @@ export default class GameScene extends Phaser.Scene {
         cells.push([r, c]);
       }
     }
-    Phaser.Utils.Array.Shuffle(cells);
+    if (this.rng) this.rng.shuffle(cells);
+    else Phaser.Utils.Array.Shuffle(cells);
 
     const torchlight = !!this.upgradeManager.modifiers.torchlight;
 
     for (let i = 0; i < count && i < cells.length; i++) {
-      const type = Phaser.Utils.Array.GetRandom(table.types);
+      const type = this.rng ? this.rng.pick(table.types) : Phaser.Utils.Array.GetRandom(table.types);
       const [row, col] = cells[i];
       const base = ENEMY_STATS[type];
       const overrides = { hp: base.hp + hpBonus };
