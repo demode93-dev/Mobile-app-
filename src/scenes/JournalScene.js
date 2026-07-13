@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, JOURNAL_TREE, DEPTH } from '../utils/constants.js';
 import { saveJournal, loadJournalLocal } from '../utils/api.js';
 
-const TAB_TEXT_COLOR = { blade: '#ff8888', aegis: '#4444cc', arcanum: '#9944cc' };
+const TAB_TEXT_COLOR = { blade: '#cc2222', aegis: '#2244cc', arcanum: '#7722cc' };
+const TAB_TEXT_STYLE_EXTRA = { stroke: '#1a0f05', strokeThickness: 3, shadow: { offsetX: 0, offsetY: 1, color: '#000000', blur: 2, fill: true } };
 
 export default class JournalScene extends Phaser.Scene {
   constructor() {
@@ -79,7 +80,7 @@ export default class JournalScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .setDepth(DEPTH.HUD);
     this.bladeTabText = this.add.text(80, tabY, 'BLADE', {
-      fontFamily: 'serif', fontSize: '14px', color: TAB_TEXT_COLOR.blade, fontStyle: 'bold'
+      fontFamily: 'serif', fontSize: '14px', color: TAB_TEXT_COLOR.blade, fontStyle: 'bold', ...TAB_TEXT_STYLE_EXTRA
     }).setOrigin(0.5).setDepth(DEPTH.HUD);
     bladeBtn.on('pointerup', () => this.switchTab('blade'));
     bladeBtn.on('pointerover', () => bladeBtn.setTint(0xffcccc));
@@ -90,7 +91,7 @@ export default class JournalScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .setDepth(DEPTH.HUD);
     this.aegisTabText = this.add.text(GAME_WIDTH / 2, tabY, 'AEGIS', {
-      fontFamily: 'serif', fontSize: '14px', color: TAB_TEXT_COLOR.aegis, fontStyle: 'bold'
+      fontFamily: 'serif', fontSize: '14px', color: TAB_TEXT_COLOR.aegis, fontStyle: 'bold', ...TAB_TEXT_STYLE_EXTRA
     }).setOrigin(0.5).setDepth(DEPTH.HUD);
     aegisBtn.on('pointerup', () => this.switchTab('aegis'));
     aegisBtn.on('pointerover', () => aegisBtn.setTint(0xccccff));
@@ -101,7 +102,7 @@ export default class JournalScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .setDepth(DEPTH.HUD);
     this.arcanumTabText = this.add.text(310, tabY, 'ARCANUM', {
-      fontFamily: 'serif', fontSize: '14px', color: TAB_TEXT_COLOR.arcanum, fontStyle: 'bold'
+      fontFamily: 'serif', fontSize: '14px', color: TAB_TEXT_COLOR.arcanum, fontStyle: 'bold', ...TAB_TEXT_STYLE_EXTRA
     }).setOrigin(0.5).setDepth(DEPTH.HUD);
     arcanumBtn.on('pointerup', () => this.switchTab('arcanum'));
     arcanumBtn.on('pointerover', () => arcanumBtn.setTint(0xecccff));
