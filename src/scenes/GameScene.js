@@ -34,9 +34,11 @@ export default class GameScene extends Phaser.Scene {
     // stream instead of Math.random(), so the same seed produces the same
     // dungeon for every player - and, given the same move history, can be
     // reproduced by a server-side replay for score validation.
-    this.isDailyDungeon = !!data.dailyDungeonSeed;
-    this.dailyDungeonSeed = data.dailyDungeonSeed || null;
-    this.rng = this.isDailyDungeon ? createSeededRng(this.dailyDungeonSeed) : null;
+    this.isTournamentRun = !!data.isTournamentRun && typeof data.dailyDungeonSeed === 'number';
+    this.dailyDungeonSeed = this.isTournamentRun ? data.dailyDungeonSeed : null;
+    this.isDailyDungeon = this.isTournamentRun; // kept as an alias for readability at call sites
+    this.rng = this.isTournamentRun ? createSeededRng(this.dailyDungeonSeed) : null;
+    this.moveHistory = [];
   }
 
   create() {

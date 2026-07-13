@@ -75,11 +75,18 @@ export default class TurnManager {
     }
   }
 
+  // Tournament-run move recording. No-op (and negligible cost) outside a
+  // Daily Dungeon run - see GameScene.init()'s isTournamentRun/moveHistory.
+  recordMove(entry) {
+    if (this.scene.isTournamentRun) this.scene.moveHistory.push(entry);
+  }
+
   async attemptSwap(a, b) {
     const result = this.board.trySwap(a, b);
     if (!result) return;
 
     if (!result.success) {
+      this.recordMove({ type: 'swap', from: a, to: b, matched: false });
       const freeRedo = this.upgradeManager.modifiers.quickReflexes && !this.quickReflexesUsedThisDepth;
       await this.board.animateSwap(a, b, true);
       if (freeRedo) {
@@ -92,6 +99,7 @@ export default class TurnManager {
       return;
     }
 
+    this.recordMove({ type: 'swap', from: a, to: b, matched: true });
     await this.board.animateSwap(a, b, false);
     await this.resolveMatchChain(result.firstMatches);
     await this.runEnemyPhase();
@@ -104,6 +112,13 @@ export default class TurnManager {
         const ability = this.board.abilityForColor(group.color);
         if (!ability) continue; // brown / no-ability tiles
         const outcome = await this.combatManager.resolveAbility(group.color, ability, group.cells, (candidates) => this.chooseTarget(candidates));
+        if (outcome) {
+          this.recordMove({
+            type: 'ability',
+            ability: outcome.ability,
+            targets: (outcome.targets || []).map(t => ({ row: t.row, col: t.col }))
+          });
+        }
         if (outcome && outcome.targets && outcome.targets.length > 0) {
           await this.moveHeroNear(outcome.targets[0]);
         }
