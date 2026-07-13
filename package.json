@@ -1,0 +1,20 @@
+{
+  "name": "dungeon-sweeper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dungeon Sweeper - a match-3 dungeon crawler built with Phaser 3 and Vite",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "phaser": "^3.70.0",
+    "faunadb": "^4.8.0",
+    "stripe": "^14.25.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}

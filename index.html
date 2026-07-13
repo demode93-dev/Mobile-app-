@@ -1,116 +1,37 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#05060a" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <title>LAB ESCAPE: Outbreak</title>
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="stylesheet" href="styles.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#2b1a0f" />
+  <title>Dungeon Sweeper</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #1a1109;
+      overflow: hidden;
+      overscroll-behavior: none;
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: none;
+    }
+    #game-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas {
+      image-rendering: pixelated;
+    }
+  </style>
 </head>
 <body>
-  <div id="app">
-    <canvas id="game"></canvas>
-
-    <!-- Heads up display -->
-    <div id="hud" class="hidden">
-      <div class="hud-top">
-        <div class="stat health">
-          <span class="label">VITALS</span>
-          <div class="bar"><div id="healthFill" class="fill"></div></div>
-        </div>
-        <div class="stat stamina">
-          <span class="label">STAMINA</span>
-          <div class="bar"><div id="staminaFill" class="fill"></div></div>
-        </div>
-        <div class="stat keys">
-          <span class="label">KEYCARDS</span>
-          <span id="keyCount" class="value">0 / 3</span>
-        </div>
-      </div>
-      <div class="hud-msg" id="hudMsg"></div>
-    </div>
-
-    <!-- Named-threat banner -->
-    <div id="nemesis" class="hidden"></div>
-
-    <!-- Radio transmission / lore log -->
-    <div id="transmission" class="hidden">
-      <span class="trans-tag">▶ INCOMING TRANSMISSION</span>
-      <p id="transmissionText"></p>
-    </div>
-
-    <!-- Touch controls -->
-    <div id="touch" class="hidden">
-      <div id="stick" class="stick-base">
-        <div id="stickNub" class="stick-nub"></div>
-      </div>
-      <div class="action-buttons">
-        <button id="btnAttack" class="abtn abtn-attack" aria-label="Attack">🪓</button>
-        <button id="btnSprint" class="abtn" aria-label="Sprint">⚡</button>
-      </div>
-    </div>
-
-    <!-- Menus -->
-    <div id="menu" class="overlay">
-      <div class="panel">
-        <h1 class="title">LAB ESCAPE</h1>
-        <p class="subtitle">— OUTBREAK —</p>
-        <p class="blurb">The specimens are loose. Find <b>3 keycards</b>, reach the exit,
-          and <b>fight or flee</b> the zombies, mutants and swarms in the dark —
-          before <b>Patient Zero</b> finds you.</p>
-        <button id="btnPlay" class="bigbtn">▶ START ESCAPE</button>
-        <div class="lore-meter">LORE FILES RECOVERED: <span id="loreMeter">0 / 6</span></div>
-        <button id="btnShop" class="smallbtn">🐾 DOG SHOP</button>
-        <div class="hint">Drag left to move • 🪓 fire axe · ⚡ sprint<br>(WASD/Arrows · Space/J swing · Shift sprint)</div>
-      </div>
-    </div>
-
-    <div id="gameover" class="overlay hidden">
-      <div class="panel">
-        <h1 class="title dead">YOU DIDN'T MAKE IT</h1>
-        <p id="goStats" class="blurb"></p>
-        <button id="btnRevive" class="bigbtn">📺 REVIVE — WATCH AD</button>
-        <button id="btnRetry" class="smallbtn">↻ Try Again</button>
-      </div>
-    </div>
-
-    <div id="win" class="overlay hidden">
-      <div class="panel">
-        <h1 class="title escaped">YOU ESCAPED!</h1>
-        <div class="stars" aria-label="star rating">
-          <span class="star">★</span><span class="star">★</span><span class="star">★</span>
-        </div>
-        <div id="winStats" class="blurb"></div>
-        <button id="btnNext" class="bigbtn">▶ DEEPER LEVEL</button>
-        <button id="btnShare" class="smallbtn">📤 Share Rescue Certificate</button>
-        <button id="btnMenu" class="smallbtn">Main Menu</button>
-      </div>
-    </div>
-
-    <!-- Dog skin shop (cosmetic monetization) -->
-    <div id="shop" class="overlay hidden">
-      <div class="panel">
-        <h1 class="title" style="font-size:32px">🐾 DOG SHOP</h1>
-        <p class="blurb">Customise your rescued companion.</p>
-        <div id="shopList" class="shop-list"></div>
-        <button id="btnShopClose" class="smallbtn">Back</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="js/utils.js"></script>
-  <script src="js/config.js"></script>
-  <script src="js/lore.js"></script>
-  <script src="js/commerce.js"></script>
-  <script src="js/audio.js"></script>
-  <script src="js/input.js"></script>
-  <script src="js/map.js"></script>
-  <script src="js/entities.js"></script>
-  <script src="js/game.js"></script>
-  <script src="js/main.js"></script>
+  <div id="game-container"></div>
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>
