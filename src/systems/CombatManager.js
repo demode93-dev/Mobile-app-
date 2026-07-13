@@ -77,7 +77,7 @@ export default class CombatManager {
     let damage = ABILITY_BASE.sword.damage + this.mod('swordDamage') + (this.modifiers.dungeonMaster ? 1 : 0);
 
     if (this.modifiers.berserkersVow) damage += 2;
-    if (target.hp / target.maxHp <= 0.3) damage += this.mod('executionerBonus');
+    if (this.modifiers.executionerInstaKill && target.hp / target.maxHp <= 0.3) damage = target.hp;
     if (!this.firstSwordUsedThisDepth && this.modifiers.firstSwordDouble) {
       damage *= 2;
       this.firstSwordUsedThisDepth = true;
@@ -203,10 +203,20 @@ export default class CombatManager {
 
   dealDamageToHero(amount, source, message) {
     if (this.hero.isDead) return 0;
-    const reduced = Math.max(0, amount - this.mod('damageReduction'));
+    let reduced = Math.max(0, amount - this.mod('damageReduction'));
+    if (this.modifiers.damageCap) reduced = Math.min(reduced, this.modifiers.damageCap);
+
+    const blockBefore = this.hero.block;
     const dealt = this.hero.applyDamage(reduced);
+    const absorbedByBlock = blockBefore - this.hero.block;
+
     if (message) this.log(message);
     this.scene.events.emit('heroDamaged', dealt, source);
+
+    if (absorbedByBlock > 0 && this.modifiers.retaliationDamage && source && typeof source.takeDamage === 'function' && !source.isDead) {
+      this.strikeEnemy(source, this.modifiers.retaliationDamage, 'retaliation');
+    }
+
     if (this.hero.isDead && !this.hero.deathEmitted) {
       this.hero.deathEmitted = true;
       this.scene.events.emit('heroDied');

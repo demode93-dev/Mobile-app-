@@ -1,104 +1,285 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, JOURNAL_NODES, JOURNAL_BRANCHES } from '../utils/constants.js';
-
-const TABS = ['blade', 'aegis', 'arcanum'];
+import { GAME_WIDTH, GAME_HEIGHT, JOURNAL_TREE } from '../utils/constants.js';
+import { saveJournal, loadJournalLocal } from '../utils/api.js';
 
 export default class JournalScene extends Phaser.Scene {
   constructor() {
     super('JournalScene');
   }
 
-  create() {
-    this.journal = this.registry.get('journal');
-    this.activeTab = 'blade';
-    this.nodeSprites = [];
-
-    this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'journal_bg').setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
-    this.add.text(GAME_WIDTH / 2, 60, 'EXPEDITION JOURNAL', { fontSize: '22px', color: '#f5e6c8', fontStyle: 'bold' }).setOrigin(0.5);
-    this.insightText = this.add.text(GAME_WIDTH / 2, 92, '', { fontSize: '15px', color: '#e0a934' }).setOrigin(0.5);
-
-    this.buildTabs();
-    this.detailText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 90, '', {
-      fontSize: '13px', color: '#f5e6c8', align: 'center', wordWrap: { width: GAME_WIDTH - 60 }
-    }).setOrigin(0.5);
-
-    this.backBtn = this.add.text(20, GAME_HEIGHT - 30, '< Menu', { fontSize: '16px', color: '#f5e6c8', fontStyle: 'bold' })
-      .setInteractive({ useHandCursor: true });
-    this.backBtn.on('pointerdown', () => this.scene.start('MenuScene'));
-
-    this.renderBranch(this.activeTab);
-    this.refreshInsight();
-
-    // Hybrid nodes shown on every tab in a shared row since they cross branches.
+  // Loads persisted journal state into the shared game registry. Called once
+  // from BootScene before any scene needs it.
+  static loadJournal(scene) {
+    const { insight, unlocked } = loadJournalLocal();
+    scene.registry.set('insight', insight || 0);
+    const journalNodes = {};
+    for (const id of unlocked || []) journalNodes[id] = true;
+    scene.registry.set('journalNodes', journalNodes);
   }
 
-  buildTabs() {
-    const colors = { blade: 0xc0392b, aegis: 0x2e6da4, arcanum: 0x8e44ad };
-    this.tabButtons = {};
-    const startX = 70;
-    TABS.forEach((tab, i) => {
-      const x = startX + i * 110;
-      const y = 130;
-      const bg = this.add.rectangle(x, y, 100, 34, colors[tab], this.activeTab === tab ? 0.9 : 0.4).setStrokeStyle(2, 0xf5e6c8).setInteractive({ useHandCursor: true });
-      const label = this.add.text(x, y, JOURNAL_BRANCHES[tab].name, { fontSize: '14px', color: '#f5e6c8', fontStyle: 'bold' }).setOrigin(0.5);
-      bg.on('pointerdown', () => this.switchTab(tab));
-      this.tabButtons[tab] = bg;
-    });
+  create() {
+    // Background
+    this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'journal_bg').setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
+
+    // Title
+    this.add.text(GAME_WIDTH / 2, 60, 'EXPEDITION JOURNAL', {
+      fontFamily: 'serif',
+      fontSize: '22px',
+      color: '#f5e6c8',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+
+    // Insight display
+    this.insightText = this.add.text(GAME_WIDTH / 2, 95, '', {
+      fontFamily: 'serif',
+      fontSize: '16px',
+      color: '#e0a934'
+    }).setOrigin(0.5);
+
+    // Create all three branch containers ONCE - tab switches just toggle
+    // visibility instead of destroying/rebuilding node sprites.
+    this.bladeContainer = this.createBranchTab(JOURNAL_TREE.blade, '#cc3333');
+    this.aegisContainer = this.createBranchTab(JOURNAL_TREE.aegis, '#3333cc');
+    this.arcanumContainer = this.createBranchTab(JOURNAL_TREE.arcanum, '#9933cc');
+
+    this.bladeContainer.setVisible(true);
+    this.aegisContainer.setVisible(false);
+    this.arcanumContainer.setVisible(false);
+
+    this.createTabButtons();
+
+    const backBtn = this.add.image(60, 790, 'button_wood')
+      .setDisplaySize(100, 50)
+      .setInteractive({ useHandCursor: true });
+
+    this.add.text(60, 790, 'BACK', {
+      fontFamily: 'serif',
+      fontSize: '14px',
+      color: '#f5e6d3'
+    }).setOrigin(0.5);
+
+    backBtn.on('pointerup', () => this.scene.start('MenuScene'));
+    backBtn.on('pointerover', () => backBtn.setTint(0xcccccc));
+    backBtn.on('pointerout', () => backBtn.clearTint());
+
+    this.updateInsightDisplay();
+  }
+
+  // ─── TAB BUTTONS ─────────────────────────────────
+
+  createTabButtons() {
+    const tabY = 140;
+
+    const bladeBtn = this.add.image(80, tabY, 'button_wood')
+      .setDisplaySize(110, 45)
+      .setInteractive({ useHandCursor: true });
+    this.add.text(80, tabY, 'BLADE', {
+      fontFamily: 'serif', fontSize: '14px', color: '#cc3333', fontStyle: 'bold'
+    }).setOrigin(0.5);
+    bladeBtn.on('pointerup', () => this.switchTab('blade'));
+    bladeBtn.on('pointerover', () => bladeBtn.setTint(0xffcccc));
+    bladeBtn.on('pointerout', () => bladeBtn.clearTint());
+
+    const aegisBtn = this.add.image(GAME_WIDTH / 2, tabY, 'button_wood')
+      .setDisplaySize(110, 45)
+      .setInteractive({ useHandCursor: true });
+    this.add.text(GAME_WIDTH / 2, tabY, 'AEGIS', {
+      fontFamily: 'serif', fontSize: '14px', color: '#3333cc', fontStyle: 'bold'
+    }).setOrigin(0.5);
+    aegisBtn.on('pointerup', () => this.switchTab('aegis'));
+    aegisBtn.on('pointerover', () => aegisBtn.setTint(0xccccff));
+    aegisBtn.on('pointerout', () => aegisBtn.clearTint());
+
+    const arcanumBtn = this.add.image(310, tabY, 'button_wood')
+      .setDisplaySize(110, 45)
+      .setInteractive({ useHandCursor: true });
+    this.add.text(310, tabY, 'ARCANUM', {
+      fontFamily: 'serif', fontSize: '14px', color: '#9933cc', fontStyle: 'bold'
+    }).setOrigin(0.5);
+    arcanumBtn.on('pointerup', () => this.switchTab('arcanum'));
+    arcanumBtn.on('pointerover', () => arcanumBtn.setTint(0xecccff));
+    arcanumBtn.on('pointerout', () => arcanumBtn.clearTint());
   }
 
   switchTab(tab) {
-    this.activeTab = tab;
-    Object.entries(this.tabButtons).forEach(([key, bg]) => bg.setFillStyle(bg.fillColor, key === tab ? 0.9 : 0.4));
-    this.renderBranch(tab);
-  }
+    this.bladeContainer.setVisible(false);
+    this.aegisContainer.setVisible(false);
+    this.arcanumContainer.setVisible(false);
 
-  renderBranch(branch) {
-    this.nodeSprites.forEach(s => s.destroy());
-    this.nodeSprites = [];
-
-    const nodes = JOURNAL_NODES.filter(n => n.branch === branch);
-    const hybrid = JOURNAL_NODES.filter(n => n.branch === 'hybrid');
-
-    nodes.forEach((node, i) => this.renderNode(node, 90 + (i % 2) * 210, 200 + Math.floor(i / 2) * 90));
-
-    this.add.rectangle(GAME_WIDTH / 2, 470, GAME_WIDTH - 40, 1, 0xf5e6c8, 0.3);
-    const hybridLabel = this.add.text(GAME_WIDTH / 2, 490, 'Hybrid Nodes', { fontSize: '13px', color: '#d9a441', fontStyle: 'bold' }).setOrigin(0.5);
-    this.nodeSprites.push(hybridLabel);
-    hybrid.forEach((node, i) => this.renderNode(node, 90 + (i % 2) * 210, 530 + Math.floor(i / 2) * 90));
-  }
-
-  renderNode(node, x, y) {
-    const unlocked = this.journal.isUnlocked(node.id);
-    const available = this.journal.isAvailable(node.id);
-    const color = unlocked ? 0xe0a934 : (available ? 0x8fd19e : 0x555555);
-
-    const circle = this.add.circle(x, y, 26, color, unlocked ? 0.95 : (available ? 0.6 : 0.3)).setStrokeStyle(2, 0xf5e6c8).setInteractive({ useHandCursor: true });
-    const label = this.add.text(x, y, node.cost, { fontSize: '13px', color: '#1a1a1a', fontStyle: 'bold' }).setOrigin(0.5);
-    const name = this.add.text(x, y + 34, node.name, { fontSize: '10px', color: '#f5e6c8', align: 'center', wordWrap: { width: 100 } }).setOrigin(0.5, 0);
-
-    if (available) {
-      this.tweens.add({ targets: circle, alpha: { from: 0.5, to: 0.9 }, duration: 700, yoyo: true, repeat: -1 });
+    switch (tab) {
+      case 'blade': this.bladeContainer.setVisible(true); break;
+      case 'aegis': this.aegisContainer.setVisible(true); break;
+      case 'arcanum': this.arcanumContainer.setVisible(true); break;
     }
 
-    circle.on('pointerover', () => this.showDetail(node, unlocked, available));
-    circle.on('pointerdown', () => {
-      this.showDetail(node, unlocked, available);
-      if (available && this.journal.canAfford(node.id)) {
-        this.journal.unlock(node.id);
-        this.refreshInsight();
-        this.renderBranch(this.activeTab);
+    this.refreshAllNodeVisuals();
+  }
+
+  // ─── BRANCH CONTAINERS ───────────────────────────
+
+  createBranchTab(nodes, lineColor) {
+    const container = this.add.container(0, 0);
+    this.renderNodeTree(container, nodes, 200, lineColor);
+    return container;
+  }
+
+  // ─── NODE RENDERING ──────────────────────────────
+
+  renderNodeTree(container, nodes, startY, lineColor) {
+    const journalNodes = this.registry.get('journalNodes') || {};
+    const centerX = GAME_WIDTH / 2;
+    const nodeSpacingY = 95;
+    const leftX = 100;
+    const rightX = 290;
+
+    const xFor = (column) => (column === 'left' ? leftX : column === 'right' ? rightX : centerX);
+
+    nodes.forEach((node) => {
+      const isUnlocked = journalNodes[node.id] || false;
+      const canUnlock = this.canUnlockNode(node);
+
+      const x = xFor(node.column);
+      const y = startY + (node.row * nodeSpacingY);
+
+      // Draw connection line to prerequisite (if any)
+      if (node.prerequisite) {
+        const prereq = nodes.find(n => n.id === node.prerequisite);
+        if (prereq) {
+          const prereqX = xFor(prereq.column);
+          const prereqY = startY + (prereq.row * nodeSpacingY);
+
+          const line = this.add.graphics();
+          line.lineStyle(2, Phaser.Display.Color.HexStringToColor(lineColor).color, 0.6);
+          line.lineBetween(prereqX, prereqY + 20, x, y - 20);
+          container.add(line);
+        }
+      }
+
+      // Node circle
+      let circleColor;
+      if (isUnlocked) circleColor = 0x4a8c3f; // Green = unlocked
+      else if (canUnlock) circleColor = 0xd4a017; // Gold = available
+      else circleColor = 0x666666; // Grey = locked
+
+      const circle = this.add.circle(x, y, 22, circleColor);
+      circle.setStrokeStyle(2, 0x3a1a0a);
+      container.add(circle);
+
+      const icon = this.add.text(x, y - 4, node.icon, {
+        fontFamily: 'serif', fontSize: '18px', color: '#ffffff'
+      }).setOrigin(0.5);
+      container.add(icon);
+
+      const name = this.add.text(x, y + 28, node.name, {
+        fontFamily: 'serif', fontSize: '10px', color: '#f5e6c8', align: 'center'
+      }).setOrigin(0.5, 0);
+      container.add(name);
+
+      let costLabel = null;
+      if (!isUnlocked) {
+        costLabel = this.add.text(x, y + 40, `${node.cost} INS`, {
+          fontFamily: 'serif', fontSize: '9px', color: '#d9b88a'
+        }).setOrigin(0.5, 0);
+        container.add(costLabel);
+      }
+
+      if (canUnlock && !isUnlocked) {
+        circle.setInteractive({ useHandCursor: true });
+        circle.on('pointerup', () => this.unlockNode(node.id));
+        circle.on('pointerover', () => circle.setFillStyle(0xe5b818));
+        circle.on('pointerout', () => circle.setFillStyle(0xd4a017));
+      }
+
+      // Node data objects come from the shared JOURNAL_TREE constant (stable
+      // references), so these attachments persist across tab switches/unlocks.
+      node._circle = circle;
+      node._icon = icon;
+      node._name = name;
+      node._costLabel = costLabel;
+      node._container = container;
+    });
+  }
+
+  // ─── UNLOCK LOGIC ────────────────────────────────
+
+  canUnlockNode(node) {
+    const journalNodes = this.registry.get('journalNodes') || {};
+    if (journalNodes[node.id]) return false;
+    if (node.prerequisite && !journalNodes[node.prerequisite]) return false;
+    const insight = this.registry.get('insight') || 0;
+    return insight >= node.cost;
+  }
+
+  findNode(nodeId) {
+    return [...JOURNAL_TREE.blade, ...JOURNAL_TREE.aegis, ...JOURNAL_TREE.arcanum].find(n => n.id === nodeId);
+  }
+
+  unlockNode(nodeId) {
+    const node = this.findNode(nodeId);
+    if (!node || !this.canUnlockNode(node)) return;
+
+    const insight = this.registry.get('insight') || 0;
+    this.registry.set('insight', insight - node.cost);
+
+    const journalNodes = this.registry.get('journalNodes') || {};
+    journalNodes[node.id] = true;
+    this.registry.set('journalNodes', journalNodes);
+
+    this.persistJournal();
+    this.updateNodeVisual(node);
+    this.updateInsightDisplay();
+    this.refreshAllNodeVisuals();
+
+    this.cameras.main.flash(300, 74, 140, 63, false); // Green flash
+  }
+
+  updateNodeVisual(node) {
+    if (node._circle) {
+      node._circle.setFillStyle(0x4a8c3f); // Green
+      node._circle.disableInteractive();
+      node._circle.off('pointerover');
+      node._circle.off('pointerout');
+    }
+    if (node._costLabel) {
+      node._costLabel.destroy();
+      node._costLabel = null;
+    }
+  }
+
+  refreshAllNodeVisuals() {
+    const journalNodes = this.registry.get('journalNodes') || {};
+    const allNodes = [...JOURNAL_TREE.blade, ...JOURNAL_TREE.aegis, ...JOURNAL_TREE.arcanum];
+
+    allNodes.forEach(node => {
+      if (journalNodes[node.id]) {
+        this.updateNodeVisual(node);
+      } else if (node._circle) {
+        const canUnlock = this.canUnlockNode(node);
+        node._circle.setFillStyle(canUnlock ? 0xd4a017 : 0x666666);
+        if (canUnlock && !node._circle.input) {
+          node._circle.setInteractive({ useHandCursor: true });
+          node._circle.on('pointerup', () => this.unlockNode(node.id));
+          node._circle.on('pointerover', () => node._circle.setFillStyle(0xe5b818));
+          node._circle.on('pointerout', () => node._circle.setFillStyle(0xd4a017));
+        } else if (!canUnlock && node._circle.input) {
+          node._circle.disableInteractive();
+        }
       }
     });
-
-    this.nodeSprites.push(circle, label, name);
   }
 
-  showDetail(node, unlocked, available) {
-    let status = unlocked ? 'UNLOCKED' : (available ? `Available - costs ${node.cost} Insight` : 'Locked (missing prerequisites)');
-    this.detailText.setText(`${node.name}\n${node.desc}\n${status}`);
+  // ─── INSIGHT DISPLAY ─────────────────────────────
+
+  updateInsightDisplay() {
+    const insight = this.registry.get('insight') || 0;
+    this.insightText.setText(`Insight: ${insight}`);
   }
 
-  refreshInsight() {
-    this.insightText.setText(`Insight: ${this.journal.insight}`);
+  // ─── PERSISTENCE ─────────────────────────────────
+
+  persistJournal() {
+    const journalNodes = this.registry.get('journalNodes') || {};
+    const insight = this.registry.get('insight') || 0;
+    saveJournal({ insight, unlocked: Object.keys(journalNodes).filter(id => journalNodes[id]) });
   }
 }

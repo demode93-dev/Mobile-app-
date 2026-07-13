@@ -2,8 +2,9 @@ import Phaser from 'phaser';
 import {
   GAME_WIDTH, GAME_HEIGHT, GRID_SIZE, GRID_OFFSET_X, GRID_OFFSET_Y, TILE_SIZE,
   HERO_START_ROW, HERO_START_COL, ENEMY_STATS, ENEMY_HP_SCALE_PER_DEPTHS, ENEMY_DMG_SCALE_PER_DEPTHS,
-  getSpawnTableForDepth
+  getSpawnTableForDepth, computeJournalModifiers, computeInsightEarned
 } from '../utils/constants.js';
+import { saveJournal } from '../utils/api.js';
 import BoardManager from '../systems/BoardManager.js';
 import CombatManager from '../systems/CombatManager.js';
 import TurnManager from '../systems/TurnManager.js';
@@ -32,8 +33,8 @@ export default class GameScene extends Phaser.Scene {
   create() {
     this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'parchment_bg').setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
 
-    const journal = this.registry.get('journal');
-    const baseModifiers = journal ? journal.computeModifiers() : {};
+    const unlockedNodes = Object.keys(this.registry.get('journalNodes') || {});
+    const baseModifiers = computeJournalModifiers(unlockedNodes);
     this.upgradeManager = new UpgradeManager(baseModifiers);
     this.hero = new Hero(this, this.upgradeManager.modifiers);
     this.phoenixDownAvailable = !!this.upgradeManager.modifiers.phoenixDown;
@@ -193,7 +194,8 @@ export default class GameScene extends Phaser.Scene {
     if (this.depthTransitioning) return;
     this.depthTransitioning = true;
     this.input.enabled = false;
-    const options = this.upgradeManager.drawOptions(3);
+    const cardCount = this.upgradeManager.modifiers.campfireCardCount || 3;
+    const options = this.upgradeManager.drawOptions(cardCount);
     this.scene.launch('CampfireScene', { options, gameScene: this });
     this.scene.pause();
   }
@@ -220,8 +222,11 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
     this.input.enabled = false;
-    const journal = this.registry.get('journal');
-    const earned = journal ? journal.earnForRun({ depthReached: this.depth, enemiesKilled: this.enemiesKilled }) : 0;
+    const earned = computeInsightEarned({ depthReached: this.depth, enemiesKilled: this.enemiesKilled });
+    const insight = (this.registry.get('insight') || 0) + earned;
+    this.registry.set('insight', insight);
+    const unlocked = Object.keys(this.registry.get('journalNodes') || {});
+    saveJournal({ insight, unlocked });
     this.scene.start('GameOverScene', { depth: this.depth, enemiesKilled: this.enemiesKilled, insightEarned: earned });
   }
 

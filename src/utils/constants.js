@@ -120,56 +120,96 @@ export const UPGRADE_POOL = [
 ];
 
 // ---------------------------------------------------------------------------
-// Expedition Journal (meta-progression skill tree) - 22 nodes total
+// Expedition Journal (meta-progression skill tree) - 18 nodes, 6 per branch
 // ---------------------------------------------------------------------------
 export const INSIGHT_PER_DEPTH = 3;
 export const INSIGHT_PER_3_KILLS = 1;
 export const INSIGHT_MILESTONE_BONUS = { 5: 10, 10: 25, 15: 50, 20: 100 };
 
+export function computeInsightEarned({ depthReached, enemiesKilled }) {
+  let earned = depthReached * INSIGHT_PER_DEPTH + Math.floor(enemiesKilled / 3) * INSIGHT_PER_3_KILLS;
+  for (const [milestone, bonus] of Object.entries(INSIGHT_MILESTONE_BONUS)) {
+    if (depthReached >= Number(milestone)) earned += bonus;
+  }
+  return earned;
+}
+
 export const JOURNAL_BRANCHES = {
   blade: { name: 'Blade', color: 0xc0392b },
   aegis: { name: 'Aegis', color: 0x2e6da4 },
-  arcanum: { name: 'Arcanum', color: 0x8e44ad },
-  hybrid: { name: 'Hybrid', color: 0xd9a441 }
+  arcanum: { name: 'Arcanum', color: 0x8e44ad }
 };
 
-export const JOURNAL_NODES = [
-  // --- Blade branch ---
-  { id: 'blade_1', branch: 'blade', name: 'Honed Edge', desc: 'Sword deals +1 damage.', cost: 3, prereqs: [], effect: { key: 'swordDamage', value: 1 } },
-  { id: 'blade_2', branch: 'blade', name: 'Twin Strike', desc: '10% chance Sword triggers twice.', cost: 5, prereqs: ['blade_1'], effect: { key: 'twinStrikeChance', value: 0.1 } },
-  { id: 'blade_3', branch: 'blade', name: 'Bloodlust', desc: 'Heal 1 HP on any enemy kill.', cost: 5, prereqs: ['blade_1'], effect: { key: 'bloodlust', value: 1 } },
-  { id: 'blade_4', branch: 'blade', name: 'Executioner', desc: 'Sword deals +2 damage to enemies below 30% HP.', cost: 8, prereqs: ['blade_2'], effect: { key: 'executionerBonus', value: 2 } },
-  { id: 'blade_5', branch: 'blade', name: "Weapon Master", desc: 'First Sword match each depth deals double damage.', cost: 8, prereqs: ['blade_3'], effect: { key: 'firstSwordDouble', value: true } },
-  { id: 'blade_6', branch: 'blade', name: "Berserker's Vow", desc: 'Sword damage +2, but max HP -2.', cost: 12, prereqs: ['blade_4', 'blade_5'], effect: { key: 'berserkersVow', value: true } },
+// id -> display data (name/icon/cost/tree position/prerequisite/human-readable effect text)
+export const JOURNAL_TREE = {
+  blade: [
+    { id: '1A', name: "Veteran's Grip", icon: '⚔️', cost: 20, row: 0, column: 'center', prerequisite: null, effect: 'Sword damage +1' },
+    { id: '1D', name: 'Opening Strike', icon: '🗡️', cost: 30, row: 1, column: 'left', prerequisite: '1A', effect: 'First Sword match each depth deals double' },
+    { id: '1B', name: 'Blade Sharpener', icon: '🔪', cost: 40, row: 1, column: 'right', prerequisite: '1A', effect: 'Sword damage +2 base' },
+    { id: '1E', name: 'Blood Price', icon: '🩸', cost: 60, row: 2, column: 'left', prerequisite: '1D', effect: 'Sword +3 damage, -5 max HP' },
+    { id: '1C', name: 'Dual Wield', icon: '⚔️', cost: 80, row: 2, column: 'right', prerequisite: '1B', effect: 'Start with Double Strike active' },
+    { id: '1F', name: 'Executioner', icon: '💀', cost: 120, row: 3, column: 'center', prerequisite: '1E', effect: 'Sword insta-kills enemies below 30% HP' }
+  ],
+  aegis: [
+    { id: '2A', name: 'Reinforced Plating', icon: '🛡️', cost: 20, row: 0, column: 'center', prerequisite: null, effect: '+5 max HP' },
+    { id: '2D', name: 'Second Skin', icon: '🪨', cost: 30, row: 1, column: 'left', prerequisite: '2A', effect: 'Start each depth with 2 Block' },
+    { id: '2B', name: 'Tower Shield', icon: '🔰', cost: 40, row: 1, column: 'right', prerequisite: '2A', effect: 'Block gained is now 3' },
+    { id: '2E', name: 'Retaliation', icon: '⚡', cost: 60, row: 2, column: 'left', prerequisite: '2D', effect: 'Block absorbs deal 2 damage back' },
+    { id: '2C', name: 'Unbreakable', icon: '🏰', cost: 80, row: 2, column: 'right', prerequisite: '2B', effect: 'Start with Iron Wall active' },
+    { id: '2F', name: 'Fortress', icon: '🔒', cost: 120, row: 3, column: 'center', prerequisite: '2E', effect: 'Cannot take more than 5 damage per hit' }
+  ],
+  arcanum: [
+    { id: '3A', name: 'Arcane Primer', icon: '✨', cost: 20, row: 0, column: 'center', prerequisite: null, effect: 'Magic damage +1' },
+    { id: '3D', name: 'Scout Training', icon: '👁️', cost: 30, row: 1, column: 'left', prerequisite: '3A', effect: 'Reveal one enemy type at depth start' },
+    { id: '3B', name: 'Potion Mastery', icon: '🧪', cost: 40, row: 1, column: 'right', prerequisite: '3A', effect: 'Potion healing is now 3' },
+    { id: '3E', name: 'Treasure Sense', icon: '🔍', cost: 60, row: 2, column: 'left', prerequisite: '3D', effect: 'Campfire shows 4 cards instead of 3' },
+    { id: '3C', name: 'Alchemical Genius', icon: '⚗️', cost: 80, row: 2, column: 'right', prerequisite: '3B', effect: 'Start with Chain Lightning active' },
+    { id: '3F', name: 'Grand Arcanist', icon: '🌟', cost: 120, row: 3, column: 'center', prerequisite: '3E', effect: 'Once per run, redraw campfire cards' }
+  ]
+};
 
-  // --- Aegis branch ---
-  { id: 'aegis_1', branch: 'aegis', name: 'Padded Armor', desc: '+2 max HP.', cost: 3, prereqs: [], effect: { key: 'maxHp', value: 2 } },
-  { id: 'aegis_2', branch: 'aegis', name: 'Fortify', desc: 'Shield grants +1 Block.', cost: 5, prereqs: ['aegis_1'], effect: { key: 'shieldBlock', value: 1 } },
-  { id: 'aegis_3', branch: 'aegis', name: 'Second Skin', desc: 'Block persists 1 extra turn.', cost: 5, prereqs: ['aegis_1'], effect: { key: 'blockDurationBonus', value: 1 } },
-  { id: 'aegis_4', branch: 'aegis', name: 'Iron Resolve', desc: 'Start every depth with 1 Block.', cost: 8, prereqs: ['aegis_2'], effect: { key: 'startingBlock', value: 1 } },
-  { id: 'aegis_5', branch: 'aegis', name: 'Thick Hide', desc: 'Reduce all incoming damage by 1 (min 1).', cost: 8, prereqs: ['aegis_3'], effect: { key: 'damageReduction', value: 1 } },
-  { id: 'aegis_6', branch: 'aegis', name: "Guardian's Bulwark", desc: 'Block also absorbs poison damage.', cost: 12, prereqs: ['aegis_4', 'aegis_5'], effect: { key: 'blockAbsorbsPoison', value: true } },
+// id -> machine-readable modifier effect, applied to a fresh run's UpgradeManager
+// modifiers (see CombatManager/GameScene/CampfireScene for how each key is consumed).
+export const JOURNAL_NODE_MODIFIERS = {
+  '1A': { swordDamage: 1 },
+  '1D': { firstSwordDouble: true },
+  '1B': { swordDamage: 2 },
+  '1E': { swordDamage: 3, maxHp: -5 },
+  '1C': { doubleStrike: true },
+  '1F': { executionerInstaKill: true },
+  '2A': { maxHp: 5 },
+  '2D': { startingBlock: 2 },
+  '2B': { shieldBlock: 1 },
+  '2E': { retaliationDamage: 2 },
+  '2C': { ironWall: true },
+  '2F': { damageCap: 5 },
+  '3A': { magicDamage: 1 },
+  '3D': { torchlight: true },
+  '3B': { potionHeal: 1 },
+  '3E': { campfireCardCount: 4 },
+  '3C': { chainLightning: true },
+  '3F': { campfireRedraw: true }
+};
 
-  // --- Arcanum branch ---
-  { id: 'arcanum_1', branch: 'arcanum', name: 'Focused Mind', desc: 'Magic deals +1 damage.', cost: 3, prereqs: [], effect: { key: 'magicDamage', value: 1 } },
-  { id: 'arcanum_2', branch: 'arcanum', name: 'Wide Cast', desc: 'Magic hits a 5-tile line instead of 3.', cost: 5, prereqs: ['arcanum_1'], effect: { key: 'magicLineLength', value: 5 } },
-  { id: 'arcanum_3', branch: 'arcanum', name: 'Arcane Echo', desc: '15% chance Magic casts twice.', cost: 5, prereqs: ['arcanum_1'], effect: { key: 'arcaneEchoChance', value: 0.15 } },
-  { id: 'arcanum_4', branch: 'arcanum', name: 'Piercing Bolts', desc: 'Magic ignores Wraith immunity.', cost: 8, prereqs: ['arcanum_2'], effect: { key: 'piercesWraithImmunity', value: true } },
-  { id: 'arcanum_5', branch: 'arcanum', name: 'Spell Weaving', desc: 'Matching 4+ Purple tiles doubles Magic damage.', cost: 8, prereqs: ['arcanum_3'], effect: { key: 'spellWeaving', value: true } },
-  { id: 'arcanum_6', branch: 'arcanum', name: "Archmage's Grimoire", desc: 'Magic +2 damage, hits in a cross pattern.', cost: 12, prereqs: ['arcanum_4', 'arcanum_5'], effect: { key: 'crossMagic', value: true } },
-
-  // --- Hybrid nodes ---
-  { id: 'hybrid_1', branch: 'hybrid', name: "Adventurer's Grit", desc: '+1 max HP, +1 Insight per depth cleared.', cost: 6, prereqs: ['blade_1', 'aegis_1'], effect: { key: 'adventurersGrit', value: true } },
-  { id: 'hybrid_2', branch: 'hybrid', name: 'Battle Priest', desc: 'Potion heals +2 and grants 1 Block.', cost: 10, prereqs: ['aegis_2', 'arcanum_1'], effect: { key: 'battlePriest', value: true } },
-  { id: 'hybrid_3', branch: 'hybrid', name: 'Elemental Fury', desc: 'Sword kills burst 1 Magic damage to adjacent enemies.', cost: 10, prereqs: ['blade_2', 'arcanum_2'], effect: { key: 'elementalFury', value: true } },
-  { id: 'hybrid_4', branch: 'hybrid', name: 'Dungeon Master', desc: 'All ability tiles gain +1 effect.', cost: 16, prereqs: ['blade_4', 'aegis_4', 'arcanum_4'], effect: { key: 'dungeonMaster', value: true } }
-];
+export function computeJournalModifiers(unlockedNodeIds = []) {
+  const mods = {};
+  for (const id of unlockedNodeIds) {
+    const effect = JOURNAL_NODE_MODIFIERS[id];
+    if (!effect) continue;
+    for (const [key, value] of Object.entries(effect)) {
+      if (typeof value === 'number') mods[key] = (mods[key] || 0) + value;
+      else mods[key] = value;
+    }
+  }
+  return mods;
+}
 
 // ---------------------------------------------------------------------------
 // Misc
 // ---------------------------------------------------------------------------
 export const STORAGE_KEYS = {
-  JOURNAL: 'dungeonSweeper_journal',
+  JOURNAL_NODES: 'dungeonSweeper_journalNodes',
+  INSIGHT: 'dungeonSweeper_insight',
   BEST_RUN: 'dungeonSweeper_bestRun',
   PLAYER_NAME: 'dungeonSweeper_playerName',
   DAILY_DUNGEON_CACHE: 'dungeonSweeper_dailyDungeonCache'

@@ -45,17 +45,22 @@ function writeLocal(key, value) {
 // ---------------------------------------------------------------------------
 // Journal persistence
 // ---------------------------------------------------------------------------
-export async function saveJournal(journalState) {
-  writeLocal(STORAGE_KEYS.JOURNAL, journalState);
+// Stored as two plain localStorage keys (not one combined blob) so JournalScene
+// can read/write insight and unlocked-node state independently and instantly.
+export async function saveJournal({ insight, unlocked }) {
+  writeLocal(STORAGE_KEYS.INSIGHT, insight);
+  writeLocal(STORAGE_KEYS.JOURNAL_NODES, unlocked);
   try {
-    await callFunction('update-journal', { method: 'POST', body: journalState });
+    await callFunction('update-journal', { method: 'POST', body: { insight, unlocked } });
   } catch (e) {
     // offline fallback already saved locally, nothing more to do
   }
 }
 
-export function loadJournalLocal(fallback) {
-  return readLocal(STORAGE_KEYS.JOURNAL, fallback);
+export function loadJournalLocal() {
+  const insight = readLocal(STORAGE_KEYS.INSIGHT, 0);
+  const unlocked = readLocal(STORAGE_KEYS.JOURNAL_NODES, []);
+  return { insight, unlocked };
 }
 
 // ---------------------------------------------------------------------------

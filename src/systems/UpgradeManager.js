@@ -8,6 +8,7 @@ export default class UpgradeManager {
     this.baseModifiers = baseModifiers;
     this.runCards = [];
     this.modifiers = { ...baseModifiers };
+    this.campfireRedrawUsed = false; // Grand Arcanist: once per run, not per depth
   }
 
   drawOptions(count = 3) {

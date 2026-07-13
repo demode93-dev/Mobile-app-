@@ -12,20 +12,50 @@ export default class CampfireScene extends Phaser.Scene {
   create(data) {
     this.options = data.options;
     this.gameScene = data.gameScene;
+    this.cardObjects = [];
 
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.55);
     this.add.image(GAME_WIDTH / 2, 270, 'campfire_card').setDisplaySize(300, 320);
     this.add.text(GAME_WIDTH / 2, 150, 'Rest at the Campfire', { fontSize: '22px', color: '#f5e6c8', fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(GAME_WIDTH / 2, 230, 'Choose one upgrade', { fontSize: '16px', color: '#f5e6c8' }).setOrigin(0.5);
 
-    const cardWidth = 110;
-    const spacing = 120;
-    const startX = GAME_WIDTH / 2 - spacing;
+    const um = this.gameScene.upgradeManager;
+    if (um.modifiers.campfireRedraw && !um.campfireRedrawUsed) {
+      this.redrawBtn = this.add.text(GAME_WIDTH / 2, 455, '🔄 Redraw (once per run)', {
+        fontSize: '13px', color: '#f5e6c8', fontStyle: 'bold', backgroundColor: '#3a2013', padding: { x: 8, y: 4 }
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      this.redrawBtn.on('pointerdown', () => this.redrawCards());
+    }
+
+    this.renderCards();
+  }
+
+  renderCards() {
+    this.cardObjects.forEach(obj => obj.destroy());
+    this.cardObjects = [];
+
+    const count = this.options.length;
+    const margin = 40;
+    const usableWidth = GAME_WIDTH - margin;
+    const spacing = usableWidth / count;
+    const cardWidth = Math.min(110, spacing - 10);
+    const startX = GAME_WIDTH / 2 - (spacing * (count - 1)) / 2;
     const y = 560;
 
     this.options.forEach((card, i) => {
       this.buildCard(startX + i * spacing, y, card, cardWidth);
     });
+  }
+
+  redrawCards() {
+    const um = this.gameScene.upgradeManager;
+    if (um.campfireRedrawUsed) return;
+    um.campfireRedrawUsed = true;
+    this.options = um.drawOptions(this.options.length);
+    this.renderCards();
+    this.redrawBtn.destroy();
+    this.redrawBtn = null;
+    this.gameScene.setLog('You sift through the embers for new fortunes.');
   }
 
   buildCard(x, y, card, width) {
@@ -36,6 +66,7 @@ export default class CampfireScene extends Phaser.Scene {
     const rarity = this.add.text(x, y + 62, card.rarity.toUpperCase(), { fontSize: '10px', color: RARITY_COLOR[card.rarity], fontStyle: 'bold' }).setOrigin(0.5);
 
     const group = [img, name, desc, rarity];
+    this.cardObjects.push(...group);
     img.on('pointerover', () => this.tweens.add({ targets: group, scale: 1.06, duration: 120 }));
     img.on('pointerout', () => this.tweens.add({ targets: group, scale: 1, duration: 120 }));
     img.on('pointerdown', () => this.selectCard(card));

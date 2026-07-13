@@ -16,8 +16,8 @@ export default class MenuScene extends Phaser.Scene {
       fontFamily: 'Georgia, serif', fontSize: '46px', color: '#3a2013', fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    const journal = this.registry.get('journal');
-    this.add.text(GAME_WIDTH / 2, 260, `Insight: ${journal ? journal.insight : 0}`, {
+    const insight = this.registry.get('insight') || 0;
+    this.add.text(GAME_WIDTH / 2, 260, `Insight: ${insight}`, {
       fontFamily: 'Georgia, serif', fontSize: '18px', color: '#5b3a1e'
     }).setOrigin(0.5);
 
