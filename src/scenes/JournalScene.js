@@ -181,14 +181,16 @@ export default class JournalScene extends Phaser.Scene {
       container.add(icon);
 
       const name = this.add.text(x, y + 28, node.name, {
-        fontFamily: 'serif', fontSize: '10px', color: '#f5e6c8', align: 'center'
+        fontFamily: 'serif', fontSize: '10px', color: '#f5e6c8', align: 'center',
+        stroke: '#1a0f05', strokeThickness: 3
       }).setOrigin(0.5, 0);
       container.add(name);
 
       let costLabel = null;
       if (!isUnlocked) {
         costLabel = this.add.text(x, y + 40, `${node.cost} INS`, {
-          fontFamily: 'serif', fontSize: '9px', color: '#d9b88a'
+          fontFamily: 'serif', fontSize: '9px', color: '#d9b88a',
+          stroke: '#1a0f05', strokeThickness: 3
         }).setOrigin(0.5, 0);
         container.add(costLabel);
       }
