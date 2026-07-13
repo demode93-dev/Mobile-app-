@@ -27,7 +27,6 @@ export default class Mimic extends Enemy {
       this.hpBar.setVisible(false);
       this.hpBarBg.setVisible(false);
       this.sprite.setScale(1); // match tile art scale
-      this.sprite.setAngle(45); // match the board's rotated diamond tiles
     }
   }
 
@@ -36,7 +35,6 @@ export default class Mimic extends Enemy {
     this.state = MIMIC_STATE.REVEALED;
     this.sprite.setTexture(ENEMY_STATS.mimic.texture);
     this.sprite.setScale(0.7);
-    this.sprite.setAngle(0);
     this.hpBar.setVisible(true);
     this.hpBarBg.setVisible(true);
   }

@@ -1,29 +1,12 @@
-import Phaser from 'phaser';
 import {
-  GRID_SIZE, TILE_SIZE, ISO_TILE_WIDTH, ISO_TILE_HEIGHT, ISO_OFFSET_X, ISO_OFFSET_Y, gridToScreen,
+  GRID_SIZE, TILE_SIZE, GRID_OFFSET_X, GRID_OFFSET_Y,
   BOARD_TILE_COLORS, MIMIC_TILE_COLOR, TILE_TEXTURE_KEY, TILE_ABILITY
 } from '../utils/constants.js';
-
-// Diamond hit-test polygon for a tile's interactive area, in the container's
-// own local space (its origin is the tile's on-screen center). Sized to the
-// isometric grid spacing itself (not the larger rotated-sprite bounding box)
-// so adjacent diamonds tile edge-to-edge with no overlap or dead zones.
-const TILE_HIT_POLYGON = new Phaser.Geom.Polygon([
-  0, -ISO_TILE_HEIGHT / 2,
-  ISO_TILE_WIDTH / 2, 0,
-  0, ISO_TILE_HEIGHT / 2,
-  -ISO_TILE_WIDTH / 2, 0
-]);
 
 // Owns the 5x5 grid of colored tiles: layout, swapping, match detection,
 // removal, and gravity/cascade refill. Cells that hold a disguised Mimic are
 // permanently 'brown' and treated as fixed obstacles - gravity flows around
 // them like a blocker tile in a typical match-3 game.
-//
-// The board renders isometrically: each tile is a Container (so the diamond
-// hit area stays fixed regardless of the visual rotation applied to the
-// sprite inside it) positioned via gridToScreen() and holding a single child
-// sprite rotated 45deg for the diamond look.
 export default class BoardManager {
   constructor(scene) {
     this.scene = scene;
@@ -37,8 +20,8 @@ export default class BoardManager {
 
   renderGridBackdrop() {
     const boardSize = GRID_SIZE * TILE_SIZE;
-    const centerX = ISO_OFFSET_X;
-    const centerY = ISO_OFFSET_Y + (GRID_SIZE - 1) * (ISO_TILE_HEIGHT / 2);
+    const centerX = GRID_OFFSET_X + boardSize / 2;
+    const centerY = GRID_OFFSET_Y + boardSize / 2;
     this.gridBackdrop = this.scene.add.image(centerX, centerY, 'grid').setDisplaySize(boardSize, boardSize).setDepth(1);
   }
 
@@ -70,35 +53,23 @@ export default class BoardManager {
   }
 
   pixelFor(row, col) {
-    return gridToScreen(row, col);
-  }
-
-  // Builds one tile: a Container (the interactive, positioned object) wrapping
-  // a child sprite rotated 45deg for the visual diamond. `spawnPos` lets a
-  // cascade-refill tile appear further up the isometric column axis and tween
-  // in from there, instead of always starting at its own resting position.
-  createTileContainer(row, col, color, spawnPos = null) {
-    const restPos = gridToScreen(row, col);
-    const startPos = spawnPos || restPos;
-
-    const container = this.scene.add.container(startPos.x, startPos.y).setDepth(2);
-    const inner = this.scene.add.sprite(0, 0, TILE_TEXTURE_KEY[color]).setAngle(45);
-    container.add(inner);
-    container.setInteractive(TILE_HIT_POLYGON, Phaser.Geom.Polygon.Contains, { useHandCursor: true });
-    container.row = row;
-    container.col = col;
-    container.tileSprite = inner;
-    container.restX = restPos.x;
-    container.restY = restPos.y;
-    return container;
+    return {
+      x: GRID_OFFSET_X + col * TILE_SIZE + TILE_SIZE / 2,
+      y: GRID_OFFSET_Y + row * TILE_SIZE + TILE_SIZE / 2
+    };
   }
 
   render() {
     for (let r = 0; r < GRID_SIZE; r++) {
       this.sprites[r] = [];
       for (let c = 0; c < GRID_SIZE; c++) {
+        const { x, y } = this.pixelFor(r, c);
         const color = this.grid[r][c];
-        this.sprites[r][c] = this.createTileContainer(r, c, color);
+        const sprite = this.scene.add.sprite(x, y, TILE_TEXTURE_KEY[color]).setDepth(2);
+        sprite.setInteractive({ useHandCursor: true });
+        sprite.row = r;
+        sprite.col = c;
+        this.sprites[r][c] = sprite;
       }
     }
   }
@@ -118,14 +89,14 @@ export default class BoardManager {
   markMimicCell(row, col) {
     this.blockedCells.add(this.key(row, col));
     this.grid[row][col] = MIMIC_TILE_COLOR;
-    if (this.sprites[row]) this.sprites[row][col].tileSprite.setTexture(TILE_TEXTURE_KEY[MIMIC_TILE_COLOR]);
+    if (this.sprites[row]) this.sprites[row][col].setTexture(TILE_TEXTURE_KEY[MIMIC_TILE_COLOR]);
   }
 
   revealMimicCell(row, col) {
     this.blockedCells.delete(this.key(row, col));
     const color = this.randomColor();
     this.grid[row][col] = color;
-    this.sprites[row][col].tileSprite.setTexture(TILE_TEXTURE_KEY[color]);
+    this.sprites[row][col].setTexture(TILE_TEXTURE_KEY[color]);
   }
 
   areAdjacent(a, b) {
@@ -297,23 +268,22 @@ export default class BoardManager {
       const destRow = top + i;
       const { x, y } = this.pixelFor(destRow, col);
       if (newSprites[i]) {
-        const container = newSprites[i];
+        const sprite = newSprites[i];
         tweens.push(new Promise((resolve) => {
-          this.scene.tweens.add({ targets: container, x, y, duration: 220, ease: 'Bounce.easeOut', onComplete: resolve });
+          this.scene.tweens.add({ targets: sprite, x, y, duration: 220, ease: 'Bounce.easeOut', onComplete: resolve });
         }));
-        container.row = destRow;
-        container.col = col;
-        this.sprites[destRow][col] = container;
+        sprite.row = destRow;
+        sprite.col = col;
+        this.sprites[destRow][col] = sprite;
       } else {
-        // Spawn further up the same isometric column axis (not straight above
-        // in screen space) so the fall-in tween travels along the diamond
-        // grid's diagonal, matching how settled tiles shift when they cascade.
-        const spawnRow = top - (emptyCount - i);
-        const spawnPos = this.pixelFor(spawnRow, col);
-        const container = this.createTileContainer(destRow, col, newGrid[i], spawnPos);
-        this.sprites[destRow][col] = container;
+        const spawnY = this.pixelFor(top, col).y - (emptyCount) * TILE_SIZE;
+        const sprite = this.scene.add.sprite(x, spawnY, TILE_TEXTURE_KEY[newGrid[i]]).setDepth(2);
+        sprite.setInteractive({ useHandCursor: true });
+        sprite.row = destRow;
+        sprite.col = col;
+        this.sprites[destRow][col] = sprite;
         tweens.push(new Promise((resolve) => {
-          this.scene.tweens.add({ targets: container, x, y, duration: 260, ease: 'Bounce.easeOut', onComplete: resolve });
+          this.scene.tweens.add({ targets: sprite, y, duration: 260, ease: 'Bounce.easeOut', onComplete: resolve });
         }));
       }
       this.grid[destRow][col] = newGrid[i];

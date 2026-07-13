@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  GAME_WIDTH, GAME_HEIGHT, GRID_SIZE, TILE_SIZE, gridToScreen,
+  GAME_WIDTH, GAME_HEIGHT, GRID_SIZE, GRID_OFFSET_X, GRID_OFFSET_Y, TILE_SIZE,
   HERO_START_ROW, HERO_START_COL, ENEMY_STATS, ENEMY_HP_SCALE_PER_DEPTHS, ENEMY_DMG_SCALE_PER_DEPTHS,
   getSpawnTableForDepth
 } from '../utils/constants.js';
@@ -96,11 +96,9 @@ export default class GameScene extends Phaser.Scene {
 
   highlightTile(pos) {
     this.clearHighlight();
-    const { x, y } = gridToScreen(pos.row, pos.col);
-    this.selectionBox = this.add.rectangle(x, y, TILE_SIZE - 4, TILE_SIZE - 4)
-      .setAngle(45)
-      .setStrokeStyle(4, 0xffcc00)
-      .setDepth(15);
+    const x = GRID_OFFSET_X + pos.col * TILE_SIZE + TILE_SIZE / 2;
+    const y = GRID_OFFSET_Y + pos.row * TILE_SIZE + TILE_SIZE / 2;
+    this.selectionBox = this.add.rectangle(x, y, TILE_SIZE - 4, TILE_SIZE - 4).setStrokeStyle(4, 0xffcc00).setDepth(15);
   }
 
   clearHighlight() {
