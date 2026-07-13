@@ -14,7 +14,15 @@ export default class BoardManager {
     this.sprites = [];
     this.blockedCells = new Set(); // "row,col" strings currently held by a disguised Mimic
     this.buildInitialGrid();
+    this.renderGridBackdrop();
     this.render();
+  }
+
+  renderGridBackdrop() {
+    const boardSize = GRID_SIZE * TILE_SIZE;
+    const centerX = GRID_OFFSET_X + boardSize / 2;
+    const centerY = GRID_OFFSET_Y + boardSize / 2;
+    this.gridBackdrop = this.scene.add.image(centerX, centerY, 'grid').setDisplaySize(boardSize, boardSize).setDepth(1);
   }
 
   key(row, col) {
@@ -292,5 +300,6 @@ export default class BoardManager {
         if (sprite) sprite.destroy();
       }
     }
+    if (this.gridBackdrop) this.gridBackdrop.destroy();
   }
 }
