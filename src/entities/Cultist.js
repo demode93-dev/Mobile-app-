@@ -43,7 +43,13 @@ export default class Cultist extends Enemy {
 
   showHealFx(target) {
     const { x, y } = target.pixelPosition();
-    const text = this.scene.add.text(x, y - 30, `+${this.healAmount}`, { fontSize: '16px', color: '#33ff77', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.FLOATING_TEXT);
+    if (target.sprite && target.sprite.scene) {
+      target.sprite.setTintFill(0xaa44ff);
+      this.scene.time.delayedCall(150, () => {
+        if (target.sprite && target.sprite.scene) target.sprite.clearTint();
+      });
+    }
+    const text = this.scene.add.text(x, y - 30, `+${this.healAmount}`, { fontSize: '16px', color: '#cc88ff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.FLOATING_TEXT);
     this.scene.tweens.add({ targets: text, y: y - 55, alpha: 0, duration: 700, onComplete: () => text.destroy() });
   }
 }

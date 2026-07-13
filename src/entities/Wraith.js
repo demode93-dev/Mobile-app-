@@ -13,6 +13,8 @@ export default class Wraith extends Enemy {
       speed: base.speed
     });
     this.magicImmune = base.magicImmune;
+    this.sprite.setTint(0xaee0ff);
+    this.sprite.setAlpha(0.85);
   }
 
   act(context) {
@@ -45,6 +47,23 @@ export default class Wraith extends Enemy {
     const [nr, nc] = candidates[Math.floor(Math.random() * candidates.length)];
     occupied.delete(`${this.row},${this.col}`);
     occupied.add(`${nr},${nc}`);
+    this.teleportFlash();
     this.moveTo(nr, nc);
+  }
+
+  // Preserve the Wraith's persistent pale-blue tint through the base class's
+  // white damage-flash instead of clearing it entirely.
+  flashDamage() {
+    if (!this.sprite || !this.sprite.scene) return;
+    this.sprite.setTintFill(0xffffff);
+    this.scene.time.delayedCall(50, () => {
+      if (this.sprite && this.sprite.scene) this.sprite.setTint(0xaee0ff);
+    });
+  }
+
+  teleportFlash() {
+    if (!this.sprite || !this.sprite.scene) return;
+    this.sprite.setAlpha(0.3);
+    this.scene.tweens.add({ targets: this.sprite, alpha: 0.85, duration: 220, ease: 'Quad.easeOut' });
   }
 }

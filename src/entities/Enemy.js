@@ -76,7 +76,7 @@ export default class Enemy {
 
   showDodge() {
     const { x, y } = this.pixelPosition();
-    const text = this.scene.add.text(x, y - 20, 'DODGE!', { fontSize: '14px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.FLOATING_TEXT);
+    const text = this.scene.add.text(x, y - 20, 'MISS', { fontSize: '14px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.FLOATING_TEXT);
     this.scene.tweens.add({ targets: text, y: y - 45, alpha: 0, duration: 600, onComplete: () => text.destroy() });
   }
 
