@@ -5,6 +5,30 @@
 // ---------------------------------------------------------------------------
 export const GAME_WIDTH = 390;
 export const GAME_HEIGHT = 844;
+export const SAFE_BOTTOM = 20; // margin reserved above the physical screen edge
+
+// ---------------------------------------------------------------------------
+// Render depth tiers (per-scene; Phaser depth sorting doesn't cross scenes).
+// Every setDepth() call in the project should reference one of these instead
+// of a raw number, so layering stays intentional and easy to reason about.
+// ---------------------------------------------------------------------------
+export const DEPTH = {
+  BACKGROUND: 0,
+  GRID: 1,
+  TILE: 2,
+  POISON_RING: 4,
+  ENEMY: 6,
+  ENEMY_HP_BG: 7,
+  ENEMY_HP_FILL: 8,
+  HUD: 10,
+  TILE_HIGHLIGHT: 15,
+  HERO: 20,
+  FLOATING_TEXT: 30,
+  MODAL_OVERLAY: 100,
+  MODAL_BG: 101,
+  MODAL_CARD: 102,
+  MODAL_TEXT: 103
+};
 
 // ---------------------------------------------------------------------------
 // Board / Grid
@@ -143,28 +167,28 @@ export const JOURNAL_BRANCHES = {
 // id -> display data (name/icon/cost/tree position/prerequisite/human-readable effect text)
 export const JOURNAL_TREE = {
   blade: [
-    { id: '1A', name: "Veteran's Grip", icon: '⚔️', cost: 20, row: 0, column: 'center', prerequisite: null, effect: 'Sword damage +1' },
-    { id: '1D', name: 'Opening Strike', icon: '🗡️', cost: 30, row: 1, column: 'left', prerequisite: '1A', effect: 'First Sword match each depth deals double' },
-    { id: '1B', name: 'Blade Sharpener', icon: '🔪', cost: 40, row: 1, column: 'right', prerequisite: '1A', effect: 'Sword damage +2 base' },
-    { id: '1E', name: 'Blood Price', icon: '🩸', cost: 60, row: 2, column: 'left', prerequisite: '1D', effect: 'Sword +3 damage, -5 max HP' },
-    { id: '1C', name: 'Dual Wield', icon: '⚔️', cost: 80, row: 2, column: 'right', prerequisite: '1B', effect: 'Start with Double Strike active' },
-    { id: '1F', name: 'Executioner', icon: '💀', cost: 120, row: 3, column: 'center', prerequisite: '1E', effect: 'Sword insta-kills enemies below 30% HP' }
+    { id: '1A', name: "Veteran's Grip", icon: 'VG', cost: 20, row: 0, column: 'center', prerequisite: null, effect: 'Sword damage +1' },
+    { id: '1D', name: 'Opening Strike', icon: 'OS', cost: 30, row: 1, column: 'left', prerequisite: '1A', effect: 'First Sword match each depth deals double' },
+    { id: '1B', name: 'Blade Sharpener', icon: 'BS', cost: 40, row: 1, column: 'right', prerequisite: '1A', effect: 'Sword damage +2 base' },
+    { id: '1E', name: 'Blood Price', icon: 'BP', cost: 60, row: 2, column: 'left', prerequisite: '1D', effect: 'Sword +3 damage, -5 max HP' },
+    { id: '1C', name: 'Dual Wield', icon: 'DW', cost: 80, row: 2, column: 'right', prerequisite: '1B', effect: 'Start with Double Strike active' },
+    { id: '1F', name: 'Executioner', icon: 'EX', cost: 120, row: 3, column: 'center', prerequisite: '1E', effect: 'Sword insta-kills enemies below 30% HP' }
   ],
   aegis: [
-    { id: '2A', name: 'Reinforced Plating', icon: '🛡️', cost: 20, row: 0, column: 'center', prerequisite: null, effect: '+5 max HP' },
-    { id: '2D', name: 'Second Skin', icon: '🪨', cost: 30, row: 1, column: 'left', prerequisite: '2A', effect: 'Start each depth with 2 Block' },
-    { id: '2B', name: 'Tower Shield', icon: '🔰', cost: 40, row: 1, column: 'right', prerequisite: '2A', effect: 'Block gained is now 3' },
-    { id: '2E', name: 'Retaliation', icon: '⚡', cost: 60, row: 2, column: 'left', prerequisite: '2D', effect: 'Block absorbs deal 2 damage back' },
-    { id: '2C', name: 'Unbreakable', icon: '🏰', cost: 80, row: 2, column: 'right', prerequisite: '2B', effect: 'Start with Iron Wall active' },
-    { id: '2F', name: 'Fortress', icon: '🔒', cost: 120, row: 3, column: 'center', prerequisite: '2E', effect: 'Cannot take more than 5 damage per hit' }
+    { id: '2A', name: 'Reinforced Plating', icon: 'RP', cost: 20, row: 0, column: 'center', prerequisite: null, effect: '+5 max HP' },
+    { id: '2D', name: 'Second Skin', icon: 'SS', cost: 30, row: 1, column: 'left', prerequisite: '2A', effect: 'Start each depth with 2 Block' },
+    { id: '2B', name: 'Tower Shield', icon: 'TS', cost: 40, row: 1, column: 'right', prerequisite: '2A', effect: 'Block gained is now 3' },
+    { id: '2E', name: 'Retaliation', icon: 'RT', cost: 60, row: 2, column: 'left', prerequisite: '2D', effect: 'Block absorbs deal 2 damage back' },
+    { id: '2C', name: 'Unbreakable', icon: 'UW', cost: 80, row: 2, column: 'right', prerequisite: '2B', effect: 'Start with Iron Wall active' },
+    { id: '2F', name: 'Fortress', icon: 'FT', cost: 120, row: 3, column: 'center', prerequisite: '2E', effect: 'Cannot take more than 5 damage per hit' }
   ],
   arcanum: [
-    { id: '3A', name: 'Arcane Primer', icon: '✨', cost: 20, row: 0, column: 'center', prerequisite: null, effect: 'Magic damage +1' },
-    { id: '3D', name: 'Scout Training', icon: '👁️', cost: 30, row: 1, column: 'left', prerequisite: '3A', effect: 'Reveal one enemy type at depth start' },
-    { id: '3B', name: 'Potion Mastery', icon: '🧪', cost: 40, row: 1, column: 'right', prerequisite: '3A', effect: 'Potion healing is now 3' },
-    { id: '3E', name: 'Treasure Sense', icon: '🔍', cost: 60, row: 2, column: 'left', prerequisite: '3D', effect: 'Campfire shows 4 cards instead of 3' },
-    { id: '3C', name: 'Alchemical Genius', icon: '⚗️', cost: 80, row: 2, column: 'right', prerequisite: '3B', effect: 'Start with Chain Lightning active' },
-    { id: '3F', name: 'Grand Arcanist', icon: '🌟', cost: 120, row: 3, column: 'center', prerequisite: '3E', effect: 'Once per run, redraw campfire cards' }
+    { id: '3A', name: 'Arcane Primer', icon: 'AP', cost: 20, row: 0, column: 'center', prerequisite: null, effect: 'Magic damage +1' },
+    { id: '3D', name: 'Scout Training', icon: 'ST', cost: 30, row: 1, column: 'left', prerequisite: '3A', effect: 'Reveal one enemy type at depth start' },
+    { id: '3B', name: 'Potion Mastery', icon: 'PM', cost: 40, row: 1, column: 'right', prerequisite: '3A', effect: 'Potion healing is now 3' },
+    { id: '3E', name: 'Treasure Sense', icon: 'TS', cost: 60, row: 2, column: 'left', prerequisite: '3D', effect: 'Campfire shows 4 cards instead of 3' },
+    { id: '3C', name: 'Alchemical Genius', icon: 'AG', cost: 80, row: 2, column: 'right', prerequisite: '3B', effect: 'Start with Chain Lightning active' },
+    { id: '3F', name: 'Grand Arcanist', icon: 'GA', cost: 120, row: 3, column: 'center', prerequisite: '3E', effect: 'Once per run, redraw campfire cards' }
   ]
 };
 

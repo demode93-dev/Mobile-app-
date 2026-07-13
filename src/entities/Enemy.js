@@ -1,4 +1,4 @@
-import { GRID_OFFSET_X, GRID_OFFSET_Y, TILE_SIZE, GRID_SIZE } from '../utils/constants.js';
+import { GRID_OFFSET_X, GRID_OFFSET_Y, TILE_SIZE, GRID_SIZE, DEPTH } from '../utils/constants.js';
 
 // Base class for all enemy types. Subclasses implement act(context) for their
 // enemy-phase AI and may override onTakeDamage for special reactions (Mimic).
@@ -17,12 +17,12 @@ export default class Enemy {
     this.poisonSourceTile = false;
 
     const { x, y } = this.pixelPosition();
-    this.sprite = scene.add.sprite(x, y, texture).setDepth(6);
+    this.sprite = scene.add.sprite(x, y, texture).setDepth(DEPTH.ENEMY);
     this.sprite.setScale(0.7);
     this.sprite.setInteractive({ useHandCursor: true });
 
-    this.hpBarBg = scene.add.rectangle(x, y - 34, 44, 6, 0x1a1a1a).setDepth(7);
-    this.hpBar = scene.add.rectangle(x, y - 34, 44, 6, 0xc0392b).setDepth(8);
+    this.hpBarBg = scene.add.rectangle(x, y - 34, 44, 6, 0x1a1a1a).setDepth(DEPTH.ENEMY_HP_BG);
+    this.hpBar = scene.add.rectangle(x, y - 34, 44, 6, 0xc0392b).setDepth(DEPTH.ENEMY_HP_FILL);
   }
 
   pixelPosition(row = this.row, col = this.col) {
@@ -76,7 +76,7 @@ export default class Enemy {
 
   showDodge() {
     const { x, y } = this.pixelPosition();
-    const text = this.scene.add.text(x, y - 20, 'DODGE!', { fontSize: '14px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(30);
+    const text = this.scene.add.text(x, y - 20, 'DODGE!', { fontSize: '14px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.FLOATING_TEXT);
     this.scene.tweens.add({ targets: text, y: y - 45, alpha: 0, duration: 600, onComplete: () => text.destroy() });
   }
 

@@ -1,4 +1,4 @@
-import { GRID_OFFSET_X, GRID_OFFSET_Y, TILE_SIZE, HERO_BASE_HP, HERO_START_ROW, HERO_START_COL } from '../utils/constants.js';
+import { GRID_OFFSET_X, GRID_OFFSET_Y, TILE_SIZE, HERO_BASE_HP, HERO_START_ROW, HERO_START_COL, DEPTH } from '../utils/constants.js';
 
 // The hero's grid cell is mostly flavor for adjacency checks: after each
 // ability resolves, the hero token animates to the nearest open cell next to
@@ -19,7 +19,7 @@ export default class Hero {
     this.isDead = false;
 
     const { x, y } = this.pixelPosition();
-    this.sprite = scene.add.sprite(x, y, 'hero').setDepth(20);
+    this.sprite = scene.add.sprite(x, y, 'hero').setDepth(DEPTH.HERO);
     this.sprite.setScale(0.8);
 
     scene.tweens.add({

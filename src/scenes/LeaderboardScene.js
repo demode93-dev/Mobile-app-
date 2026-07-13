@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, STORAGE_KEYS } from '../utils/constants.js';
+import { GAME_WIDTH, GAME_HEIGHT, STORAGE_KEYS, DEPTH } from '../utils/constants.js';
 import { getDailyDungeon, getLeaderboard } from '../utils/api.js';
 
 export default class LeaderboardScene extends Phaser.Scene {
@@ -8,15 +8,15 @@ export default class LeaderboardScene extends Phaser.Scene {
   }
 
   create() {
-    this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'parchment_bg').setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
-    this.add.text(GAME_WIDTH / 2, 60, 'Daily Dungeon Dive', { fontSize: '22px', color: '#3a2013', fontStyle: 'bold' }).setOrigin(0.5);
-    this.timeText = this.add.text(GAME_WIDTH / 2, 90, '', { fontSize: '14px', color: '#5b3a1e' }).setOrigin(0.5);
+    this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'parchment_bg').setDisplaySize(GAME_WIDTH, GAME_HEIGHT).setDepth(DEPTH.BACKGROUND);
+    this.add.text(GAME_WIDTH / 2, 60, 'Daily Dungeon Dive', { fontSize: '22px', color: '#3a2013', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.HUD);
+    this.timeText = this.add.text(GAME_WIDTH / 2, 90, '', { fontSize: '14px', color: '#5b3a1e' }).setOrigin(0.5).setDepth(DEPTH.HUD);
 
-    this.listContainer = this.add.container(0, 130);
-    this.statusText = this.add.text(GAME_WIDTH / 2, 200, 'Loading leaderboard...', { fontSize: '14px', color: '#5b3a1e' }).setOrigin(0.5);
+    this.listContainer = this.add.container(0, 130).setDepth(DEPTH.HUD);
+    this.statusText = this.add.text(GAME_WIDTH / 2, 200, 'Loading leaderboard...', { fontSize: '14px', color: '#5b3a1e' }).setOrigin(0.5).setDepth(DEPTH.HUD);
 
     this.backBtn = this.add.text(20, GAME_HEIGHT - 30, '< Menu', { fontSize: '16px', color: '#3a2013', fontStyle: 'bold' })
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true }).setDepth(DEPTH.HUD);
     this.backBtn.on('pointerdown', () => this.scene.start('MenuScene'));
 
     this.startCountdown();

@@ -1,8 +1,12 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, RARITY } from '../utils/constants.js';
+import { GAME_WIDTH, GAME_HEIGHT, SAFE_BOTTOM, DEPTH, RARITY } from '../utils/constants.js';
 
 const RARITY_TEXTURE = { [RARITY.COMMON]: 'card_common', [RARITY.RARE]: 'card_rare', [RARITY.LEGENDARY]: 'card_legendary' };
-const RARITY_COLOR = { [RARITY.COMMON]: '#b0b0a8', [RARITY.RARE]: '#4a90d9', [RARITY.LEGENDARY]: '#e0a934' };
+const RARITY_COLOR = { [RARITY.COMMON]: '#b0b0a8', [RARITY.RARE]: '#eaf2ff', [RARITY.LEGENDARY]: '#e0a934' };
+// Rare cards use a darker blue-grey frame, so their name/desc need light text;
+// common (tan parchment) and legendary (gold parchment) read fine with dark ink.
+const NAME_COLOR = { [RARITY.COMMON]: '#1a1a1a', [RARITY.RARE]: '#ffffff', [RARITY.LEGENDARY]: '#1a1a1a' };
+const DESC_COLOR = { [RARITY.COMMON]: '#1a1a1a', [RARITY.RARE]: '#ffeebb', [RARITY.LEGENDARY]: '#1a1a1a' };
 
 export default class CampfireScene extends Phaser.Scene {
   constructor() {
@@ -14,20 +18,34 @@ export default class CampfireScene extends Phaser.Scene {
     this.gameScene = data.gameScene;
     this.cardObjects = [];
 
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.55);
-    this.add.image(GAME_WIDTH / 2, 270, 'campfire_card').setDisplaySize(300, 320);
-    this.add.text(GAME_WIDTH / 2, 150, 'Rest at the Campfire', { fontSize: '22px', color: '#f5e6c8', fontStyle: 'bold' }).setOrigin(0.5);
-    this.add.text(GAME_WIDTH / 2, 230, 'Choose one upgrade', { fontSize: '16px', color: '#f5e6c8' }).setOrigin(0.5);
+    // Dark overlay fully separates the campfire modal from the board/tiles
+    // rendering underneath in the paused GameScene.
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.78).setDepth(DEPTH.MODAL_OVERLAY);
+    this.add.image(GAME_WIDTH / 2, 270, 'campfire_card').setDisplaySize(300, 320).setDepth(DEPTH.MODAL_BG);
+    this.add.text(GAME_WIDTH / 2, 150, 'Rest at the Campfire', { fontSize: '22px', color: '#f5e6c8', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.MODAL_TEXT);
+    this.add.text(GAME_WIDTH / 2, 230, 'Choose one upgrade', { fontSize: '16px', color: '#f5e6c8' }).setOrigin(0.5).setDepth(DEPTH.MODAL_TEXT);
+
+    // Own dedicated flavor-text strip, instead of relying on the (mostly
+    // hidden, underneath the overlay) GameScene log text.
+    const safeBottom = GAME_HEIGHT - SAFE_BOTTOM;
+    this.flavorBg = this.add.rectangle(GAME_WIDTH / 2, safeBottom - 20, GAME_WIDTH, 40, 0x1a0f05, 0.85).setDepth(DEPTH.MODAL_TEXT);
+    this.flavorText = this.add.text(GAME_WIDTH / 2, safeBottom - 20, '', {
+      fontSize: '13px', color: '#f5e6d3', fontStyle: 'italic', align: 'center', wordWrap: { width: GAME_WIDTH - 40 }
+    }).setOrigin(0.5).setDepth(DEPTH.MODAL_TEXT);
 
     const um = this.gameScene.upgradeManager;
     if (um.modifiers.campfireRedraw && !um.campfireRedrawUsed) {
       this.redrawBtn = this.add.text(GAME_WIDTH / 2, 455, '🔄 Redraw (once per run)', {
         fontSize: '13px', color: '#f5e6c8', fontStyle: 'bold', backgroundColor: '#3a2013', padding: { x: 8, y: 4 }
-      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(DEPTH.MODAL_TEXT);
       this.redrawBtn.on('pointerdown', () => this.redrawCards());
     }
 
     this.renderCards();
+  }
+
+  setFlavor(msg) {
+    this.flavorText.setText(msg);
   }
 
   renderCards() {
@@ -55,15 +73,15 @@ export default class CampfireScene extends Phaser.Scene {
     this.renderCards();
     this.redrawBtn.destroy();
     this.redrawBtn = null;
-    this.gameScene.setLog('You sift through the embers for new fortunes.');
+    this.setFlavor('You sift through the embers for new fortunes.');
   }
 
   buildCard(x, y, card, width) {
     const texture = RARITY_TEXTURE[card.rarity];
-    const img = this.add.image(x, y, texture).setDisplaySize(width, 150).setInteractive({ useHandCursor: true });
-    const name = this.add.text(x, y - 55, card.name, { fontSize: '12px', color: '#1a1a1a', fontStyle: 'bold', align: 'center', wordWrap: { width: width - 10 } }).setOrigin(0.5);
-    const desc = this.add.text(x, y - 5, card.desc, { fontSize: '10px', color: '#1a1a1a', align: 'center', wordWrap: { width: width - 14 } }).setOrigin(0.5);
-    const rarity = this.add.text(x, y + 62, card.rarity.toUpperCase(), { fontSize: '10px', color: RARITY_COLOR[card.rarity], fontStyle: 'bold' }).setOrigin(0.5);
+    const img = this.add.image(x, y, texture).setDisplaySize(width, 150).setInteractive({ useHandCursor: true }).setDepth(DEPTH.MODAL_CARD);
+    const name = this.add.text(x, y - 55, card.name, { fontSize: '12px', color: NAME_COLOR[card.rarity], fontStyle: 'bold', align: 'center', wordWrap: { width: width - 10 } }).setOrigin(0.5).setDepth(DEPTH.MODAL_TEXT);
+    const desc = this.add.text(x, y - 5, card.desc, { fontSize: '10px', color: DESC_COLOR[card.rarity], align: 'center', wordWrap: { width: width - 14 } }).setOrigin(0.5).setDepth(DEPTH.MODAL_TEXT);
+    const rarity = this.add.text(x, y + 62, card.rarity.toUpperCase(), { fontSize: '10px', color: RARITY_COLOR[card.rarity], fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.MODAL_TEXT);
 
     const group = [img, name, desc, rarity];
     this.cardObjects.push(...group);

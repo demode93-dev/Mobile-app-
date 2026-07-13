@@ -1,5 +1,5 @@
 import Enemy from './Enemy.js';
-import { ENEMY_STATS } from '../utils/constants.js';
+import { ENEMY_STATS, DEPTH } from '../utils/constants.js';
 
 export default class Skeleton extends Enemy {
   constructor(scene, row, col, statOverrides = {}) {
@@ -46,7 +46,7 @@ export default class Skeleton extends Enemy {
 
   telegraph() {
     const { x, y } = this.pixelPosition();
-    const text = this.scene.add.text(x, y - 40, '!', { fontSize: '22px', color: '#ffcc00', fontStyle: 'bold' }).setOrigin(0.5).setDepth(30);
+    const text = this.scene.add.text(x, y - 40, '!', { fontSize: '22px', color: '#ffcc00', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.FLOATING_TEXT);
     this.scene.tweens.add({ targets: text, y: y - 55, alpha: 0, duration: 500, onComplete: () => text.destroy() });
   }
 }

@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, JOURNAL_TREE } from '../utils/constants.js';
+import { GAME_WIDTH, GAME_HEIGHT, JOURNAL_TREE, DEPTH } from '../utils/constants.js';
 import { saveJournal, loadJournalLocal } from '../utils/api.js';
+
+const TAB_TEXT_COLOR = { blade: '#ff8888', aegis: '#8888ff', arcanum: '#cc88ff' };
 
 export default class JournalScene extends Phaser.Scene {
   constructor() {
@@ -19,7 +21,7 @@ export default class JournalScene extends Phaser.Scene {
 
   create() {
     // Background
-    this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'journal_bg').setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
+    this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'journal_bg').setDisplaySize(GAME_WIDTH, GAME_HEIGHT).setDepth(DEPTH.BACKGROUND);
 
     // Title
     this.add.text(GAME_WIDTH / 2, 60, 'EXPEDITION JOURNAL', {
@@ -27,14 +29,14 @@ export default class JournalScene extends Phaser.Scene {
       fontSize: '22px',
       color: '#f5e6c8',
       fontStyle: 'bold'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(DEPTH.HUD);
 
     // Insight display
     this.insightText = this.add.text(GAME_WIDTH / 2, 95, '', {
       fontFamily: 'serif',
       fontSize: '16px',
       color: '#e0a934'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(DEPTH.HUD);
 
     // Create all three branch containers ONCE - tab switches just toggle
     // visibility instead of destroying/rebuilding node sprites.
@@ -50,13 +52,14 @@ export default class JournalScene extends Phaser.Scene {
 
     const backBtn = this.add.image(60, 790, 'button_wood')
       .setDisplaySize(100, 50)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true })
+      .setDepth(DEPTH.HUD);
 
     this.add.text(60, 790, 'BACK', {
       fontFamily: 'serif',
       fontSize: '14px',
       color: '#f5e6d3'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(DEPTH.HUD);
 
     backBtn.on('pointerup', () => this.scene.start('MenuScene'));
     backBtn.on('pointerover', () => backBtn.setTint(0xcccccc));
@@ -69,36 +72,42 @@ export default class JournalScene extends Phaser.Scene {
 
   createTabButtons() {
     const tabY = 140;
+    this.tabActiveBg = this.add.rectangle(80, tabY, 100, 30, 0x443322, 0.6).setDepth(DEPTH.HUD);
 
     const bladeBtn = this.add.image(80, tabY, 'button_wood')
       .setDisplaySize(110, 45)
-      .setInteractive({ useHandCursor: true });
-    this.add.text(80, tabY, 'BLADE', {
-      fontFamily: 'serif', fontSize: '14px', color: '#cc3333', fontStyle: 'bold'
-    }).setOrigin(0.5);
+      .setInteractive({ useHandCursor: true })
+      .setDepth(DEPTH.HUD);
+    this.bladeTabText = this.add.text(80, tabY, 'BLADE', {
+      fontFamily: 'serif', fontSize: '14px', color: TAB_TEXT_COLOR.blade, fontStyle: 'bold'
+    }).setOrigin(0.5).setDepth(DEPTH.HUD);
     bladeBtn.on('pointerup', () => this.switchTab('blade'));
     bladeBtn.on('pointerover', () => bladeBtn.setTint(0xffcccc));
     bladeBtn.on('pointerout', () => bladeBtn.clearTint());
 
     const aegisBtn = this.add.image(GAME_WIDTH / 2, tabY, 'button_wood')
       .setDisplaySize(110, 45)
-      .setInteractive({ useHandCursor: true });
-    this.add.text(GAME_WIDTH / 2, tabY, 'AEGIS', {
-      fontFamily: 'serif', fontSize: '14px', color: '#3333cc', fontStyle: 'bold'
-    }).setOrigin(0.5);
+      .setInteractive({ useHandCursor: true })
+      .setDepth(DEPTH.HUD);
+    this.aegisTabText = this.add.text(GAME_WIDTH / 2, tabY, 'AEGIS', {
+      fontFamily: 'serif', fontSize: '14px', color: TAB_TEXT_COLOR.aegis, fontStyle: 'bold'
+    }).setOrigin(0.5).setDepth(DEPTH.HUD);
     aegisBtn.on('pointerup', () => this.switchTab('aegis'));
     aegisBtn.on('pointerover', () => aegisBtn.setTint(0xccccff));
     aegisBtn.on('pointerout', () => aegisBtn.clearTint());
 
     const arcanumBtn = this.add.image(310, tabY, 'button_wood')
       .setDisplaySize(110, 45)
-      .setInteractive({ useHandCursor: true });
-    this.add.text(310, tabY, 'ARCANUM', {
-      fontFamily: 'serif', fontSize: '14px', color: '#9933cc', fontStyle: 'bold'
-    }).setOrigin(0.5);
+      .setInteractive({ useHandCursor: true })
+      .setDepth(DEPTH.HUD);
+    this.arcanumTabText = this.add.text(310, tabY, 'ARCANUM', {
+      fontFamily: 'serif', fontSize: '14px', color: TAB_TEXT_COLOR.arcanum, fontStyle: 'bold'
+    }).setOrigin(0.5).setDepth(DEPTH.HUD);
     arcanumBtn.on('pointerup', () => this.switchTab('arcanum'));
     arcanumBtn.on('pointerover', () => arcanumBtn.setTint(0xecccff));
     arcanumBtn.on('pointerout', () => arcanumBtn.clearTint());
+
+    this.tabButtonX = { blade: 80, aegis: GAME_WIDTH / 2, arcanum: 310 };
   }
 
   switchTab(tab) {
@@ -112,6 +121,7 @@ export default class JournalScene extends Phaser.Scene {
       case 'arcanum': this.arcanumContainer.setVisible(true); break;
     }
 
+    this.tabActiveBg.x = this.tabButtonX[tab];
     this.refreshAllNodeVisuals();
   }
 
@@ -166,7 +176,7 @@ export default class JournalScene extends Phaser.Scene {
       container.add(circle);
 
       const icon = this.add.text(x, y - 4, node.icon, {
-        fontFamily: 'serif', fontSize: '18px', color: '#ffffff'
+        fontFamily: 'serif', fontSize: '14px', color: '#ffffff', fontStyle: 'bold'
       }).setOrigin(0.5);
       container.add(icon);
 

@@ -1,5 +1,5 @@
 import {
-  GRID_SIZE, TILE_SIZE, GRID_OFFSET_X, GRID_OFFSET_Y,
+  GRID_SIZE, TILE_SIZE, GRID_OFFSET_X, GRID_OFFSET_Y, DEPTH,
   BOARD_TILE_COLORS, MIMIC_TILE_COLOR, TILE_TEXTURE_KEY, TILE_ABILITY
 } from '../utils/constants.js';
 
@@ -22,7 +22,7 @@ export default class BoardManager {
     const boardSize = GRID_SIZE * TILE_SIZE;
     const centerX = GRID_OFFSET_X + boardSize / 2;
     const centerY = GRID_OFFSET_Y + boardSize / 2;
-    this.gridBackdrop = this.scene.add.image(centerX, centerY, 'grid').setDisplaySize(boardSize, boardSize).setDepth(1);
+    this.gridBackdrop = this.scene.add.image(centerX, centerY, 'grid').setDisplaySize(boardSize, boardSize).setDepth(DEPTH.GRID);
   }
 
   key(row, col) {
@@ -65,7 +65,7 @@ export default class BoardManager {
       for (let c = 0; c < GRID_SIZE; c++) {
         const { x, y } = this.pixelFor(r, c);
         const color = this.grid[r][c];
-        const sprite = this.scene.add.sprite(x, y, TILE_TEXTURE_KEY[color]).setDepth(2);
+        const sprite = this.scene.add.sprite(x, y, TILE_TEXTURE_KEY[color]).setDepth(DEPTH.TILE);
         sprite.setInteractive({ useHandCursor: true });
         sprite.row = r;
         sprite.col = c;
@@ -277,7 +277,7 @@ export default class BoardManager {
         this.sprites[destRow][col] = sprite;
       } else {
         const spawnY = this.pixelFor(top, col).y - (emptyCount) * TILE_SIZE;
-        const sprite = this.scene.add.sprite(x, spawnY, TILE_TEXTURE_KEY[newGrid[i]]).setDepth(2);
+        const sprite = this.scene.add.sprite(x, spawnY, TILE_TEXTURE_KEY[newGrid[i]]).setDepth(DEPTH.TILE);
         sprite.setInteractive({ useHandCursor: true });
         sprite.row = destRow;
         sprite.col = col;

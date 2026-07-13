@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  GAME_WIDTH, GAME_HEIGHT, GRID_SIZE, GRID_OFFSET_X, GRID_OFFSET_Y, TILE_SIZE,
+  GAME_WIDTH, GAME_HEIGHT, GRID_SIZE, GRID_OFFSET_X, GRID_OFFSET_Y, TILE_SIZE, SAFE_BOTTOM, DEPTH,
   HERO_START_ROW, HERO_START_COL, ENEMY_STATS, ENEMY_HP_SCALE_PER_DEPTHS, ENEMY_DMG_SCALE_PER_DEPTHS,
   getSpawnTableForDepth, computeJournalModifiers, computeInsightEarned
 } from '../utils/constants.js';
@@ -57,17 +57,24 @@ export default class GameScene extends Phaser.Scene {
   // HUD
   // -------------------------------------------------------------------
   buildHud() {
-    this.hpBarBg = this.add.rectangle(GAME_WIDTH / 2, 70, 300, 24, 0x1a1a1a).setStrokeStyle(2, 0x3a2013);
-    this.hpBarFill = this.add.rectangle(GAME_WIDTH / 2 - 148, 70, 296, 20, 0xc0392b).setOrigin(0, 0.5);
-    this.hpText = this.add.text(GAME_WIDTH / 2, 70, '', { fontSize: '14px', color: '#f5e6c8', fontStyle: 'bold' }).setOrigin(0.5);
+    this.hpBarBg = this.add.rectangle(GAME_WIDTH / 2, 70, 300, 24, 0x1a1a1a).setStrokeStyle(2, 0x3a2013).setDepth(DEPTH.HUD);
+    this.hpBarFill = this.add.rectangle(GAME_WIDTH / 2 - 148, 70, 296, 20, 0xc0392b).setOrigin(0, 0.5).setDepth(DEPTH.HUD);
+    this.hpText = this.add.text(GAME_WIDTH / 2, 70, '', { fontSize: '14px', color: '#f5e6c8', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.HUD);
 
-    this.blockText = this.add.text(20, 100, '', { fontSize: '14px', color: '#2e6da4', fontStyle: 'bold' });
-    this.depthText = this.add.text(GAME_WIDTH - 20, 100, '', { fontSize: '14px', color: '#3a2013', fontStyle: 'bold' }).setOrigin(1, 0);
-    this.upgradeIconsText = this.add.text(20, 122, '', { fontSize: '11px', color: '#5b3a1e', wordWrap: { width: GAME_WIDTH - 40 } });
-    this.logText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 30, '', { fontSize: '13px', color: '#3a2013', align: 'center', wordWrap: { width: GAME_WIDTH - 40 } }).setOrigin(0.5);
+    this.blockText = this.add.text(20, 100, '', { fontSize: '14px', color: '#2e6da4', fontStyle: 'bold' }).setDepth(DEPTH.HUD);
+    this.depthText = this.add.text(GAME_WIDTH - 20, 100, '', { fontSize: '14px', color: '#3a2013', fontStyle: 'bold' }).setOrigin(1, 0).setDepth(DEPTH.HUD);
+    this.upgradeIconsText = this.add.text(20, 122, '', { fontSize: '11px', color: '#5b3a1e', wordWrap: { width: GAME_WIDTH - 40 } }).setDepth(DEPTH.HUD);
+
+    // Bottom flavor/log text: dark backing strip + light parchment text so it
+    // stays legible regardless of what's showing through the parchment behind it.
+    const safeBottom = GAME_HEIGHT - SAFE_BOTTOM;
+    this.logBg = this.add.rectangle(GAME_WIDTH / 2, safeBottom - 20, GAME_WIDTH, 40, 0x1a0f05, 0.8).setDepth(DEPTH.HUD);
+    this.logText = this.add.text(GAME_WIDTH / 2, safeBottom - 20, '', {
+      fontSize: '13px', color: '#f5e6d3', fontStyle: 'italic', align: 'center', wordWrap: { width: GAME_WIDTH - 40 }
+    }).setOrigin(0.5).setDepth(DEPTH.HUD);
 
     this.fireballBtn = this.add.text(GAME_WIDTH - 20, 122, '🔥 Fireball', { fontSize: '13px', color: '#c0392b', fontStyle: 'bold', backgroundColor: '#f5e6c8', padding: { x: 6, y: 3 } })
-      .setOrigin(1, 0).setInteractive({ useHandCursor: true }).setVisible(false);
+      .setOrigin(1, 0).setInteractive({ useHandCursor: true }).setVisible(false).setDepth(DEPTH.HUD);
     this.fireballBtn.on('pointerdown', () => {
       if (this.combatManager.castFireball()) {
         this.turnManager.checkDepthCleared();
@@ -99,7 +106,7 @@ export default class GameScene extends Phaser.Scene {
     this.clearHighlight();
     const x = GRID_OFFSET_X + pos.col * TILE_SIZE + TILE_SIZE / 2;
     const y = GRID_OFFSET_Y + pos.row * TILE_SIZE + TILE_SIZE / 2;
-    this.selectionBox = this.add.rectangle(x, y, TILE_SIZE - 4, TILE_SIZE - 4).setStrokeStyle(4, 0xffcc00).setDepth(15);
+    this.selectionBox = this.add.rectangle(x, y, TILE_SIZE - 4, TILE_SIZE - 4).setStrokeStyle(4, 0xffcc00).setDepth(DEPTH.TILE_HIGHLIGHT);
   }
 
   clearHighlight() {

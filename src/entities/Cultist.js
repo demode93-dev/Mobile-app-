@@ -1,5 +1,5 @@
 import Enemy from './Enemy.js';
-import { ENEMY_STATS } from '../utils/constants.js';
+import { ENEMY_STATS, DEPTH } from '../utils/constants.js';
 
 export default class Cultist extends Enemy {
   constructor(scene, row, col, statOverrides = {}) {
@@ -43,7 +43,7 @@ export default class Cultist extends Enemy {
 
   showHealFx(target) {
     const { x, y } = target.pixelPosition();
-    const text = this.scene.add.text(x, y - 30, `+${this.healAmount}`, { fontSize: '16px', color: '#33ff77', fontStyle: 'bold' }).setOrigin(0.5).setDepth(30);
+    const text = this.scene.add.text(x, y - 30, `+${this.healAmount}`, { fontSize: '16px', color: '#33ff77', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.FLOATING_TEXT);
     this.scene.tweens.add({ targets: text, y: y - 55, alpha: 0, duration: 700, onComplete: () => text.destroy() });
   }
 }

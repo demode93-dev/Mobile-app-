@@ -1,5 +1,5 @@
 import Enemy from './Enemy.js';
-import { ENEMY_STATS } from '../utils/constants.js';
+import { ENEMY_STATS, DEPTH } from '../utils/constants.js';
 
 // Stationary. Its own tile is poisoned; the hero takes poison damage at the
 // end of the enemy phase for as long as the hero remains adjacent to (i.e.
@@ -17,7 +17,7 @@ export default class Mushroom extends Enemy {
     });
     this.poisonDamage = statOverrides.poisonDamage ?? base.poisonDamage;
     this.poisonSourceTile = true;
-    this.poisonRing = scene.add.circle(this.pixelPosition().x, this.pixelPosition().y, 30, 0x27ae60, 0.15).setDepth(4);
+    this.poisonRing = scene.add.circle(this.pixelPosition().x, this.pixelPosition().y, 30, 0x27ae60, 0.15).setDepth(DEPTH.POISON_RING);
   }
 
   act(context) {
