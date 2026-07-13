@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, JOURNAL_TREE, DEPTH } from '../utils/constants.js';
 import { saveJournal, loadJournalLocal } from '../utils/api.js';
 
-const TAB_TEXT_COLOR = { blade: '#ff8888', aegis: '#8888ff', arcanum: '#cc88ff' };
+const TAB_TEXT_COLOR = { blade: '#cc4444', aegis: '#8888ff', arcanum: '#cc88ff' };
 
 export default class JournalScene extends Phaser.Scene {
   constructor() {
