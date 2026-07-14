@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, DEPTH, STORAGE_KEYS } from '../utils/constants.js';
 import { getDailyDungeon } from '../utils/api.js';
+import { computeYesterdayReward } from '../utils/rewards.js';
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -21,15 +22,37 @@ export default class MenuScene extends Phaser.Scene {
       fontFamily: 'Georgia, serif', fontSize: '42px', color: '#3a2013', fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(DEPTH.HUD);
 
-    const insight = this.registry.get('insight') || 0;
-    this.add.text(GAME_WIDTH / 2, 232, `Insight: ${insight}`, {
+    this.insightText = this.add.text(GAME_WIDTH / 2 - 8, 232, '', {
       fontFamily: 'Georgia, serif', fontSize: '18px', color: '#5b3a1e'
-    }).setOrigin(0.5).setDepth(DEPTH.HUD);
+    }).setOrigin(1, 0.5).setDepth(DEPTH.HUD);
+    // Diamond glyph (plain Unicode symbol, not a color emoji) - this project has
+    // seen color emoji fail to render in Phaser Text before, this hasn't.
+    this.gemsText = this.add.text(GAME_WIDTH / 2 + 8, 232, '', {
+      fontFamily: 'Georgia, serif', fontSize: '18px', color: '#2f6fb0', fontStyle: 'bold'
+    }).setOrigin(0, 0.5).setDepth(DEPTH.HUD);
+    this.refreshCurrencyDisplay();
 
     this.makeButton(GAME_WIDTH / 2, 380, 'Dungeon Dive', () => this.scene.start('GameScene'));
     this.buildDailyDungeonButton(GAME_WIDTH / 2, 470);
     this.makeButton(GAME_WIDTH / 2, 580, 'Expedition Journal', () => this.scene.start('JournalScene'));
     this.makeButton(GAME_WIDTH / 2, 650, 'Leaderboard', () => this.scene.start('LeaderboardScene'));
+
+    this.events.on('resume', () => this.refreshCurrencyDisplay());
+    this.checkYesterdayReward();
+  }
+
+  refreshCurrencyDisplay() {
+    const insight = this.registry.get('insight') || 0;
+    const gems = this.registry.get('gems') || 0;
+    this.insightText.setText(`Insight: ${insight}`);
+    this.gemsText.setText(`◆ ${gems}`);
+  }
+
+  checkYesterdayReward() {
+    const result = computeYesterdayReward();
+    if (!result) return;
+    this.scene.pause();
+    this.scene.launch('RewardPopupScene', result);
   }
 
   hasFreeEntryToday() {

@@ -238,7 +238,9 @@ export const STORAGE_KEYS = {
   PLAYER_NAME: 'dungeonSweeper_playerName',
   DAILY_DUNGEON_CACHE: 'dungeonSweeper_dailyDungeonCache',
   LAST_DAILY_ENTRY: 'dungeonSweeper_lastDailyEntry',
-  DAILY_SCORES: 'dungeonSweeper_dailyScores'
+  DAILY_SCORES: 'dungeonSweeper_dailyScores',
+  GEMS: 'dungeonSweeper_gems',
+  LAST_REWARD_CLAIM: 'dungeonSweeper_lastRewardClaim'
 };
 
 export const COLORS = {

@@ -26,7 +26,10 @@ async function callFunction(name, options = {}) {
   }
 }
 
-function readLocal(key, fallback) {
+// Exported (not just used internally) so other modules - e.g. rewards.js,
+// which needs to read yesterday's local scores - share one localStorage
+// read/write path instead of re-implementing the try/catch guards.
+export function readLocal(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
@@ -35,7 +38,7 @@ function readLocal(key, fallback) {
   }
 }
 
-function writeLocal(key, value) {
+export function writeLocal(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
@@ -86,25 +89,32 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Local-only leaderboard store, scoped to today's date so it naturally resets
-// at UTC midnight alongside the free daily entry. Shape: { date, entries: [{name, depth, score}] }.
-function readTodaysLocalScores() {
-  const store = readLocal(STORAGE_KEYS.DAILY_SCORES, null);
-  if (!store || store.date !== todayKey()) return [];
-  return store.entries;
+const SCORE_HISTORY_DAYS = 7;
+
+// Local-only leaderboard store, keyed by date so both "today" (for the live
+// leaderboard) and "yesterday" (for the reward check, which runs the day
+// after the dungeon closed) can be read back. Shape: { "<date>": [{name, depth, score}] }.
+// Pruned to the last SCORE_HISTORY_DAYS dates on every write so it can't grow unbounded.
+export function getScoresForDate(dateKey) {
+  const store = readLocal(STORAGE_KEYS.DAILY_SCORES, {});
+  return store[dateKey] || [];
 }
 
 function writeLocalScore({ playerName, depthReached, score }) {
   const dateKey = todayKey();
-  const existing = readLocal(STORAGE_KEYS.DAILY_SCORES, null);
-  const entries = (existing && existing.date === dateKey) ? existing.entries : [];
-  entries.push({ name: playerName, depth: depthReached, score });
-  writeLocal(STORAGE_KEYS.DAILY_SCORES, { date: dateKey, entries });
+  const store = readLocal(STORAGE_KEYS.DAILY_SCORES, {});
+  store[dateKey] = [...(store[dateKey] || []), { name: playerName, depth: depthReached, score }];
+
+  const keptDates = Object.keys(store).sort().slice(-SCORE_HISTORY_DAYS);
+  const pruned = {};
+  for (const d of keptDates) pruned[d] = store[d];
+
+  writeLocal(STORAGE_KEYS.DAILY_SCORES, pruned);
 }
 
 // Standard competition ranking ("1224"): ties share a rank and the next rank
 // skips ahead by the number of tied entries, rather than compressing gaps.
-function rankEntries(entries) {
+export function rankEntries(entries) {
   const sorted = [...entries].sort((a, b) => b.score - a.score);
   let rank = 0;
   let prevScore = null;
@@ -132,9 +142,21 @@ export async function getLeaderboard() {
   try {
     return await callFunction('get-leaderboard');
   } catch (e) {
-    const entries = rankEntries(readTodaysLocalScores());
+    const entries = rankEntries(getScoresForDate(todayKey()));
     return { ok: true, offline: true, entries };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Gems - virtual currency earned only from Daily Dungeon leaderboard rewards.
+// Local-only for now (no server endpoint), same as the rest of the reward system.
+// ---------------------------------------------------------------------------
+export function loadGemsLocal() {
+  return readLocal(STORAGE_KEYS.GEMS, 0);
+}
+
+export function saveGemsLocal(gems) {
+  writeLocal(STORAGE_KEYS.GEMS, gems);
 }
 
 // ---------------------------------------------------------------------------

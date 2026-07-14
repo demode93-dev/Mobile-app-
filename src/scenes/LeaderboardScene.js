@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, SAFE_BOTTOM, STORAGE_KEYS, DEPTH } from '../utils/constants.js';
-import { getDailyDungeon, getLeaderboard } from '../utils/api.js';
+import { getDailyDungeon, getLeaderboard, rankEntries } from '../utils/api.js';
 
 const MAX_VISIBLE_ROWS = 20;
 const ROW_HEIGHT = 36;
@@ -15,21 +15,6 @@ function todayKey() {
 
 function pad2(n) {
   return String(n).padStart(2, '0');
-}
-
-// Standard competition ranking ("1224"): ties share a rank and the next
-// distinct score jumps ahead by the number of tied entries.
-function assignRanks(entries) {
-  const sorted = [...entries].sort((a, b) => b.score - a.score);
-  let rank = 0;
-  let prevScore = null;
-  return sorted.map((entry, i) => {
-    if (entry.score !== prevScore) {
-      rank = i + 1;
-      prevScore = entry.score;
-    }
-    return { ...entry, rank };
-  });
 }
 
 export default class LeaderboardScene extends Phaser.Scene {
@@ -95,7 +80,7 @@ export default class LeaderboardScene extends Phaser.Scene {
     const result = await getLeaderboard();
     this.statusText.destroy();
 
-    const ranked = assignRanks(result.entries || []);
+    const ranked = rankEntries(result.entries || []);
     this.renderBoard(ranked);
   }
 
