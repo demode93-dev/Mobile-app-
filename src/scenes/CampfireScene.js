@@ -91,9 +91,7 @@ export default class CampfireScene extends Phaser.Scene {
   }
 
   selectCard(card) {
-    if (this.gameScene.isTournamentRun) {
-      this.gameScene.moveHistory.push({ type: 'upgrade', cardId: card.id, depth: this.gameScene.depth });
-    }
+    this.gameScene.recordMove({ type: 'camp_upgrade', chosen: card.id, options: this.options.map(c => c.id) });
     this.upgradeManagerApply(card);
     this.scene.stop();
     this.gameScene.scene.resume();

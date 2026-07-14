@@ -76,17 +76,20 @@ export default class TurnManager {
   }
 
   // Tournament-run move recording. No-op (and negligible cost) outside a
-  // Daily Dungeon run - see GameScene.init()'s isTournamentRun/moveHistory.
+  // Daily Dungeon run - see GameScene.init()'s isTournamentRun/moveHistory
+  // and GameScene.recordMove().
   recordMove(entry) {
-    if (this.scene.isTournamentRun) this.scene.moveHistory.push(entry);
+    this.scene.recordMove(entry);
   }
 
   async attemptSwap(a, b) {
+    const sourceColor = this.board.colorAt(a.row, a.col);
     const result = this.board.trySwap(a, b);
     if (!result) return;
 
     if (!result.success) {
-      this.recordMove({ type: 'swap', from: a, to: b, matched: false });
+      // No match: "color" falls back to the tile that was actually being moved.
+      this.recordMove({ type: 'swap', from: [a.row, a.col], to: [b.row, b.col], matched: false, color: sourceColor, abilityTriggered: null });
       const freeRedo = this.upgradeManager.modifiers.quickReflexes && !this.quickReflexesUsedThisDepth;
       await this.board.animateSwap(a, b, true);
       if (freeRedo) {
@@ -99,7 +102,12 @@ export default class TurnManager {
       return;
     }
 
-    this.recordMove({ type: 'swap', from: a, to: b, matched: true });
+    // Matched: "color" is the color that actually formed the match (and thus
+    // matches abilityTriggered), not the moved tile's own pre-swap color -
+    // those can differ, since the OTHER swapped tile is what completes the run.
+    const matchedColor = result.firstMatches.length > 0 ? result.firstMatches[0].color : sourceColor;
+    const primaryAbility = result.firstMatches.length > 0 ? this.board.abilityForColor(matchedColor) : null;
+    this.recordMove({ type: 'swap', from: [a.row, a.col], to: [b.row, b.col], matched: true, color: matchedColor, abilityTriggered: primaryAbility });
     await this.board.animateSwap(a, b, false);
     await this.resolveMatchChain(result.firstMatches);
     await this.runEnemyPhase();
@@ -113,11 +121,15 @@ export default class TurnManager {
         if (!ability) continue; // brown / no-ability tiles
         const outcome = await this.combatManager.resolveAbility(group.color, ability, group.cells, (candidates) => this.chooseTarget(candidates));
         if (outcome) {
-          this.recordMove({
-            type: 'ability',
-            ability: outcome.ability,
-            targets: (outcome.targets || []).map(t => ({ row: t.row, col: t.col }))
-          });
+          if (outcome.targets && outcome.targets.length > 0) {
+            for (const t of outcome.targets) {
+              this.recordMove({ type: outcome.ability, target: t.type, value: outcome.damage });
+            }
+          } else if (outcome.ability === 'shield') {
+            this.recordMove({ type: 'shield', target: 'hero', value: outcome.block });
+          } else if (outcome.ability === 'potion') {
+            this.recordMove({ type: 'potion', target: 'hero', value: outcome.healed });
+          }
         }
         if (outcome && outcome.targets && outcome.targets.length > 0) {
           await this.moveHeroNear(outcome.targets[0]);

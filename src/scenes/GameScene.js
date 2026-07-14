@@ -230,8 +230,15 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  // Tournament-run move recording. No-op (and negligible cost) outside a
+  // Daily Dungeon run - see init()'s isTournamentRun/moveHistory.
+  recordMove(entry) {
+    if (this.isTournamentRun) this.moveHistory.push(entry);
+  }
+
   onDepthCleared() {
     if (this.depthTransitioning) return;
+    this.recordMove({ type: 'depth_clear', depth: this.depth, enemiesRemaining: 0 });
     this.depthTransitioning = true;
     this.input.enabled = false;
     const cardCount = this.upgradeManager.modifiers.campfireCardCount || 3;
@@ -261,6 +268,7 @@ export default class GameScene extends Phaser.Scene {
       this.refreshHud();
       return;
     }
+    this.recordMove({ type: 'death', depth: this.depth, enemiesKilled: this.enemiesKilled, finalHP: 0 });
     this.input.enabled = false;
     const earned = computeInsightEarned({ depthReached: this.depth, enemiesKilled: this.enemiesKilled });
     const insight = (this.registry.get('insight') || 0) + earned;
