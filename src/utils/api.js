@@ -82,7 +82,45 @@ export async function getDailyDungeon() {
   }
 }
 
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Local-only leaderboard store, scoped to today's date so it naturally resets
+// at UTC midnight alongside the free daily entry. Shape: { date, entries: [{name, depth, score}] }.
+function readTodaysLocalScores() {
+  const store = readLocal(STORAGE_KEYS.DAILY_SCORES, null);
+  if (!store || store.date !== todayKey()) return [];
+  return store.entries;
+}
+
+function writeLocalScore({ playerName, depthReached, score }) {
+  const dateKey = todayKey();
+  const existing = readLocal(STORAGE_KEYS.DAILY_SCORES, null);
+  const entries = (existing && existing.date === dateKey) ? existing.entries : [];
+  entries.push({ name: playerName, depth: depthReached, score });
+  writeLocal(STORAGE_KEYS.DAILY_SCORES, { date: dateKey, entries });
+}
+
+// Standard competition ranking ("1224"): ties share a rank and the next rank
+// skips ahead by the number of tied entries, rather than compressing gaps.
+function rankEntries(entries) {
+  const sorted = [...entries].sort((a, b) => b.score - a.score);
+  let rank = 0;
+  let prevScore = null;
+  return sorted.map((entry, i) => {
+    if (entry.score !== prevScore) {
+      rank = i + 1;
+      prevScore = entry.score;
+    }
+    return { ...entry, rank };
+  });
+}
+
 export async function submitTournamentScore(payload) {
+  // Persisted locally first so the leaderboard has something to show even if
+  // the network call below succeeds now but a later reload happens offline.
+  writeLocalScore(payload);
   try {
     return await callFunction('submit-tournament-score', { method: 'POST', body: payload });
   } catch (e) {
@@ -94,7 +132,8 @@ export async function getLeaderboard() {
   try {
     return await callFunction('get-leaderboard');
   } catch (e) {
-    return { ok: false, offline: true, entries: [] };
+    const entries = rankEntries(readTodaysLocalScores());
+    return { ok: true, offline: true, entries };
   }
 }
 
