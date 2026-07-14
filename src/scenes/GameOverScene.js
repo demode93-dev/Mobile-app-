@@ -1,7 +1,13 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, DEPTH, STORAGE_KEYS } from '../utils/constants.js';
-import { verifyAdReward, submitTournamentScore } from '../utils/api.js';
+import { verifyAdReward, submitTournamentScore, saveJournal } from '../utils/api.js';
 import { playSFX } from '../systems/SoundManager.js';
+
+// +50% of the run's earned Insight, minimum 5 - keeps the reward meaningful
+// even on a very short/early-death run.
+function bonusInsightFor(earned) {
+  return Math.max(5, Math.round(earned * 0.5));
+}
 
 export default class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -25,15 +31,23 @@ export default class GameOverScene extends Phaser.Scene {
   buildStandardResult(data) {
     this.add.text(GAME_WIDTH / 2, 130, 'YOU HAVE FALLEN', { fontSize: '28px', color: '#7b2d3e', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.HUD);
 
-    this.add.text(GAME_WIDTH / 2, 220, [
+    this.insightEarned = data.insightEarned;
+    this.resultsText = this.add.text(GAME_WIDTH / 2, 220, this.resultsLines(data), {
+      fontSize: '18px', color: '#3a2013', align: 'center', lineSpacing: 10
+    }).setOrigin(0.5).setDepth(DEPTH.HUD);
+
+    this.secondWindBtn = this.makeButton(GAME_WIDTH / 2, 400, 'Second Wind (Watch Ad)', () => this.watchAdAndRevive());
+    this.bonusInsightBtn = this.makeButton(GAME_WIDTH / 2, 475, 'Double Insight (Watch Ad)', () => this.watchAdForBonusInsight(data));
+    this.makeButton(GAME_WIDTH / 2, 555, 'Expedition Journal', () => this.scene.start('JournalScene'));
+    this.makeButton(GAME_WIDTH / 2, 630, 'Main Menu', () => this.scene.start('MenuScene'));
+  }
+
+  resultsLines(data) {
+    return [
       `Depth Reached: ${data.depth}`,
       `Enemies Slain: ${data.enemiesKilled}`,
-      `Insight Earned: ${data.insightEarned}`
-    ].join('\n'), { fontSize: '18px', color: '#3a2013', align: 'center', lineSpacing: 10 }).setOrigin(0.5).setDepth(DEPTH.HUD);
-
-    this.secondWindBtn = this.makeButton(GAME_WIDTH / 2, 420, 'Second Wind (Watch Ad)', () => this.watchAdAndRevive());
-    this.makeButton(GAME_WIDTH / 2, 500, 'Expedition Journal', () => this.scene.start('JournalScene'));
-    this.makeButton(GAME_WIDTH / 2, 580, 'Main Menu', () => this.scene.start('MenuScene'));
+      `Insight Earned: ${this.insightEarned}`
+    ].join('\n');
   }
 
   // Tournament runs get a score breakdown instead of the Second Wind ad-revive
@@ -100,17 +114,76 @@ export default class GameOverScene extends Phaser.Scene {
     }
   }
 
-  async watchAdAndRevive() {
+  watchAdAndRevive() {
     if (this.secondWindUsed) return;
     this.secondWindUsed = true;
     this.secondWindBtn.disableInteractive();
-    this.add.text(GAME_WIDTH / 2, 460, 'Watching ad...', { fontSize: '14px', color: '#5b3a1e' }).setOrigin(0.5).setDepth(DEPTH.HUD);
 
-    const result = await verifyAdReward('offline-simulated-ad');
-    if (result.ok) {
+    this.scene.pause();
+    this.scene.launch('AdOverlayScene', {
+      placementId: 'second_wind',
+      onComplete: (result) => this.onSecondWindAdComplete(result)
+    });
+  }
+
+  async onSecondWindAdComplete(result) {
+    this.scene.resume();
+    if (!result.success) {
+      this.secondWindUsed = false;
+      this.secondWindBtn.setInteractive({ useHandCursor: true });
+      return;
+    }
+
+    // Showing the ad is a client-side event - this is the server-side
+    // confirmation step that actually grants the reward.
+    const verify = await verifyAdReward('second_wind');
+    if (verify.ok) {
       // Resume the expedition from the depth reached, with a freshly stocked hero.
       this.scene.start('GameScene', { reviveDepth: this.runData.depth });
+    } else {
+      this.secondWindUsed = false;
+      this.secondWindBtn.setInteractive({ useHandCursor: true });
     }
+  }
+
+  watchAdForBonusInsight(data) {
+    if (this.bonusInsightUsed) return;
+    this.bonusInsightUsed = true;
+    this.bonusInsightBtn.disableInteractive();
+
+    this.scene.pause();
+    this.scene.launch('AdOverlayScene', {
+      placementId: 'bonus_insight',
+      onComplete: (result) => this.onBonusInsightAdComplete(result, data)
+    });
+  }
+
+  async onBonusInsightAdComplete(result, data) {
+    this.scene.resume();
+    if (!result.success) {
+      this.bonusInsightUsed = false;
+      this.bonusInsightBtn.setInteractive({ useHandCursor: true });
+      return;
+    }
+
+    const verify = await verifyAdReward('bonus_insight');
+    if (!verify.ok) {
+      this.bonusInsightUsed = false;
+      this.bonusInsightBtn.setInteractive({ useHandCursor: true });
+      return;
+    }
+
+    // Bonus is granted on top of the insight GameScene already credited on
+    // death - not re-earned, just topped up.
+    const bonus = bonusInsightFor(data.insightEarned);
+    this.insightEarned += bonus;
+    const insight = (this.registry.get('insight') || 0) + bonus;
+    this.registry.set('insight', insight);
+    const unlocked = Object.keys(this.registry.get('journalNodes') || {});
+    saveJournal({ insight, unlocked });
+
+    this.resultsText.setText(this.resultsLines(data));
+    this.bonusInsightBtn.setTint(0x4cff4c);
   }
 
   makeButton(x, y, label, onClick, { textColor = '#f5e6c8', pill = false } = {}) {

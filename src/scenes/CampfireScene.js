@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, SAFE_BOTTOM, DEPTH, RARITY } from '../utils/constants.js';
+import { verifyAdReward } from '../utils/api.js';
 import { playSFX } from '../systems/SoundManager.js';
 
 const RARITY_TEXTURE = { [RARITY.COMMON]: 'card_common', [RARITY.RARE]: 'card_rare', [RARITY.LEGENDARY]: 'card_legendary' };
@@ -36,6 +37,7 @@ export default class CampfireScene extends Phaser.Scene {
       fontSize: '13px', color: '#f5e6d3', fontStyle: 'italic', align: 'center', wordWrap: { width: GAME_WIDTH - 40 }
     }).setOrigin(0.5).setDepth(DEPTH.MODAL_TEXT);
 
+    this.adRedrawUsed = false;
     const um = this.gameScene.upgradeManager;
     if (um.modifiers.campfireRedraw && !um.campfireRedrawUsed) {
       this.redrawBtn = this.add.text(GAME_WIDTH / 2, 455, '🔄 Redraw (once per run)', {
@@ -43,8 +45,54 @@ export default class CampfireScene extends Phaser.Scene {
       }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(DEPTH.MODAL_TEXT);
       this.redrawBtn.on('pointerdown', () => { playSFX(this, 'sfx_button'); this.redrawCards(); });
     }
+    this.buildAdRedrawButton();
 
     this.renderCards();
+  }
+
+  // Independent of the journal-node-granted free redraw above: available at
+  // every campfire (not just once per run), gated by a rewarded ad instead of
+  // a permanent unlock. Equally available to every player for free (just an
+  // ad-watch), so - unlike the removed real-money tournament plans - it
+  // doesn't undermine the Daily Dungeon's "one free entry per day" fairness.
+  buildAdRedrawButton() {
+    const y = this.redrawBtn ? 480 : 455;
+    this.adRedrawBtn = this.add.text(GAME_WIDTH / 2, y, 'Watch Ad: Redraw Cards', {
+      fontSize: '13px', color: '#f5e6c8', fontStyle: 'bold', backgroundColor: '#3a2013', padding: { x: 8, y: 4 }
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(DEPTH.MODAL_TEXT);
+    this.adRedrawBtn.on('pointerdown', () => this.watchAdForRedraw());
+  }
+
+  watchAdForRedraw() {
+    if (this.adRedrawUsed) return;
+    this.adRedrawUsed = true;
+    this.adRedrawBtn.disableInteractive();
+
+    this.scene.pause();
+    this.scene.launch('AdOverlayScene', {
+      placementId: 'campfire_redraw',
+      onComplete: (result) => this.onAdRedrawComplete(result)
+    });
+  }
+
+  async onAdRedrawComplete(result) {
+    this.scene.resume();
+    if (!result.success) {
+      this.adRedrawUsed = false;
+      this.adRedrawBtn.setInteractive({ useHandCursor: true });
+      return;
+    }
+
+    const verify = await verifyAdReward('campfire_redraw');
+    if (!verify.ok) {
+      this.adRedrawUsed = false;
+      this.adRedrawBtn.setInteractive({ useHandCursor: true });
+      return;
+    }
+
+    this.performRedraw('An ad flickers by - fresh fortunes appear in the embers.');
+    this.adRedrawBtn.destroy();
+    this.adRedrawBtn = null;
   }
 
   setFlavor(msg) {
@@ -72,11 +120,16 @@ export default class CampfireScene extends Phaser.Scene {
     const um = this.gameScene.upgradeManager;
     if (um.campfireRedrawUsed) return;
     um.campfireRedrawUsed = true;
-    this.options = um.drawOptions(this.options.length);
-    this.renderCards();
+    this.performRedraw('You sift through the embers for new fortunes.');
     this.redrawBtn.destroy();
     this.redrawBtn = null;
-    this.setFlavor('You sift through the embers for new fortunes.');
+  }
+
+  performRedraw(flavorMsg) {
+    const um = this.gameScene.upgradeManager;
+    this.options = um.drawOptions(this.options.length);
+    this.renderCards();
+    this.setFlavor(flavorMsg);
   }
 
   buildCard(x, y, card, width) {

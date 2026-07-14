@@ -3,6 +3,7 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../utils/constants.js';
 import JournalScene from './JournalScene.js';
 import { loadGemsLocal } from '../utils/api.js';
 import SoundManager, { BGM_KEY, SFX_KEYS } from '../systems/SoundManager.js';
+import AdManager from '../systems/AdManager.js';
 
 const SPRITE_KEYS = ['hero', 'skeleton', 'mimic', 'cultist', 'bat', 'mushroom', 'wraith', 'tile_red', 'tile_blue', 'tile_purple', 'tile_green', 'tile_brown', 'grid'];
 const UI_KEYS = ['parchment_bg', 'button_wood', 'campfire_card', 'card_common', 'card_rare', 'card_legendary', 'journal_bg'];
@@ -66,6 +67,9 @@ export default class BootScene extends Phaser.Scene {
     }
     if (this.registry.get('soundManager') === undefined) {
       this.registry.set('soundManager', new SoundManager(this));
+    }
+    if (this.registry.get('adManager') === undefined) {
+      this.registry.set('adManager', new AdManager());
     }
     this.scene.start('MenuScene');
   }

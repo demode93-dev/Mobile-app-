@@ -8,6 +8,7 @@ import JournalScene from './scenes/JournalScene.js';
 import LeaderboardScene from './scenes/LeaderboardScene.js';
 import GameOverScene from './scenes/GameOverScene.js';
 import RewardPopupScene from './scenes/RewardPopupScene.js';
+import AdOverlayScene from './scenes/AdOverlayScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -27,7 +28,7 @@ const config = {
   fps: {
     target: 60
   },
-  scene: [BootScene, MenuScene, GameScene, CampfireScene, JournalScene, LeaderboardScene, GameOverScene, RewardPopupScene]
+  scene: [BootScene, MenuScene, GameScene, CampfireScene, JournalScene, LeaderboardScene, GameOverScene, RewardPopupScene, AdOverlayScene]
 };
 
 const game = new Phaser.Game(config);
