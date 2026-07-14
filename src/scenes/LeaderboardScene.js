@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, SAFE_BOTTOM, STORAGE_KEYS, DEPTH } from '../utils/constants.js';
 import { getDailyDungeon, getLeaderboard, rankEntries } from '../utils/api.js';
+import { playSFX } from '../systems/SoundManager.js';
 
 const MAX_VISIBLE_ROWS = 20;
 const ROW_HEIGHT = 36;
@@ -242,6 +243,7 @@ export default class LeaderboardScene extends Phaser.Scene {
     btn.on('pointerover', () => this.tweens.add({ targets, scale: 1.05, duration: 120 }));
     btn.on('pointerout', () => this.tweens.add({ targets, scale: 1, duration: 120 }));
     btn.on('pointerdown', () => {
+      playSFX(this, 'sfx_button');
       this.tweens.add({ targets, scale: 0.95, duration: 80, yoyo: true, onComplete: onClick });
     });
     return targets;

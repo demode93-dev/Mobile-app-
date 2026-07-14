@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, DEPTH } from '../utils/constants.js';
 import { claimYesterdayReward } from '../utils/rewards.js';
+import { playSFX } from '../systems/SoundManager.js';
 
 // Launched on top of MenuScene (which it pauses, matching CampfireScene's
 // modal-over-a-paused-scene pattern) when the player has an unclaimed reward
@@ -54,7 +55,7 @@ export default class RewardPopupScene extends Phaser.Scene {
 
     this.claimBtn.on('pointerover', () => this.tweens.add({ targets: [this.claimBtn, this.claimText], scale: 1.05, duration: 120 }));
     this.claimBtn.on('pointerout', () => this.tweens.add({ targets: [this.claimBtn, this.claimText], scale: 1, duration: 120 }));
-    this.claimBtn.on('pointerdown', () => this.claim());
+    this.claimBtn.on('pointerdown', () => { playSFX(this, 'sfx_button'); this.claim(); });
   }
 
   claim() {

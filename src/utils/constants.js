@@ -240,7 +240,9 @@ export const STORAGE_KEYS = {
   LAST_DAILY_ENTRY: 'dungeonSweeper_lastDailyEntry',
   DAILY_SCORES: 'dungeonSweeper_dailyScores',
   GEMS: 'dungeonSweeper_gems',
-  LAST_REWARD_CLAIM: 'dungeonSweeper_lastRewardClaim'
+  LAST_REWARD_CLAIM: 'dungeonSweeper_lastRewardClaim',
+  AUDIO_MUTED: 'dungeonSweeper_audioMuted',
+  AUDIO_VOLUME: 'dungeonSweeper_audioVolume'
 };
 
 export const COLORS = {

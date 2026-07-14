@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, SAFE_BOTTOM, DEPTH, RARITY } from '../utils/constants.js';
+import { playSFX } from '../systems/SoundManager.js';
 
 const RARITY_TEXTURE = { [RARITY.COMMON]: 'card_common', [RARITY.RARE]: 'card_rare', [RARITY.LEGENDARY]: 'card_legendary' };
 const RARITY_COLOR = { [RARITY.COMMON]: '#8a7050', [RARITY.RARE]: '#2f4468', [RARITY.LEGENDARY]: '#8a5a0a' };
@@ -17,6 +18,8 @@ export default class CampfireScene extends Phaser.Scene {
     this.options = data.options;
     this.gameScene = data.gameScene;
     this.cardObjects = [];
+
+    playSFX(this, 'sfx_campfire');
 
     // Dark overlay fully separates the campfire modal from the board/tiles
     // rendering underneath in the paused GameScene.
@@ -38,7 +41,7 @@ export default class CampfireScene extends Phaser.Scene {
       this.redrawBtn = this.add.text(GAME_WIDTH / 2, 455, '🔄 Redraw (once per run)', {
         fontSize: '13px', color: '#f5e6c8', fontStyle: 'bold', backgroundColor: '#3a2013', padding: { x: 8, y: 4 }
       }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(DEPTH.MODAL_TEXT);
-      this.redrawBtn.on('pointerdown', () => this.redrawCards());
+      this.redrawBtn.on('pointerdown', () => { playSFX(this, 'sfx_button'); this.redrawCards(); });
     }
 
     this.renderCards();
@@ -87,7 +90,7 @@ export default class CampfireScene extends Phaser.Scene {
     this.cardObjects.push(...group);
     img.on('pointerover', () => this.tweens.add({ targets: group, scale: 1.06, duration: 120 }));
     img.on('pointerout', () => this.tweens.add({ targets: group, scale: 1, duration: 120 }));
-    img.on('pointerdown', () => this.selectCard(card));
+    img.on('pointerdown', () => { playSFX(this, 'sfx_button'); this.selectCard(card); });
   }
 
   selectCard(card) {

@@ -1,5 +1,6 @@
 import { GRID_SIZE, ENEMY_ACT_ORDER } from '../utils/constants.js';
 import { MIMIC_STATE } from '../entities/Mimic.js';
+import { playSFX } from './SoundManager.js';
 
 // Orchestrates a full turn: tile selection/swap, match + cascade resolution,
 // the enemy phase (in fixed act order), and status-effect ticks. Emits
@@ -108,6 +109,7 @@ export default class TurnManager {
     const matchedColor = result.firstMatches.length > 0 ? result.firstMatches[0].color : sourceColor;
     const primaryAbility = result.firstMatches.length > 0 ? this.board.abilityForColor(matchedColor) : null;
     this.recordMove({ type: 'swap', from: [a.row, a.col], to: [b.row, b.col], matched: true, color: matchedColor, abilityTriggered: primaryAbility });
+    playSFX(this.scene, 'sfx_match');
     await this.board.animateSwap(a, b, false);
     await this.resolveMatchChain(result.firstMatches);
     await this.runEnemyPhase();

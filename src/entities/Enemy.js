@@ -1,4 +1,5 @@
 import { GRID_OFFSET_X, GRID_OFFSET_Y, TILE_SIZE, GRID_SIZE, DEPTH } from '../utils/constants.js';
+import { playSFX } from '../systems/SoundManager.js';
 
 // Base class for all enemy types. Subclasses implement act(context) for their
 // enemy-phase AI and may override onTakeDamage for special reactions (Mimic).
@@ -56,6 +57,7 @@ export default class Enemy {
     this.hp = Math.max(0, this.hp - amount);
     this.updateHpBar();
     this.flashDamage();
+    playSFX(this.scene, 'sfx_enemy_hit');
     this.onTakeDamage(amount, source);
     if (this.hp <= 0) {
       this.die();
@@ -91,6 +93,7 @@ export default class Enemy {
   die() {
     if (this.isDead) return;
     this.isDead = true;
+    playSFX(this.scene, 'sfx_enemy_die');
     if (this.sprite) {
       this.scene.tweens.add({
         targets: [this.sprite, this.hpBar, this.hpBarBg],

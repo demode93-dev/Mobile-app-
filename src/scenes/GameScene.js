@@ -6,6 +6,7 @@ import {
 } from '../utils/constants.js';
 import { saveJournal } from '../utils/api.js';
 import { createSeededRng } from '../utils/rng.js';
+import { playSFX } from '../systems/SoundManager.js';
 import BoardManager from '../systems/BoardManager.js';
 import CombatManager from '../systems/CombatManager.js';
 import TurnManager from '../systems/TurnManager.js';
@@ -91,6 +92,7 @@ export default class GameScene extends Phaser.Scene {
     this.fireballBtn = this.add.text(GAME_WIDTH - 20, 122, '🔥 Fireball', { fontSize: '13px', color: '#c0392b', fontStyle: 'bold', backgroundColor: '#f5e6c8', padding: { x: 6, y: 3 } })
       .setOrigin(1, 0).setInteractive({ useHandCursor: true }).setVisible(false).setDepth(DEPTH.HUD);
     this.fireballBtn.on('pointerdown', () => {
+      playSFX(this, 'sfx_button');
       if (this.combatManager.castFireball()) {
         this.turnManager.checkDepthCleared();
         this.refreshHud();
@@ -242,6 +244,7 @@ export default class GameScene extends Phaser.Scene {
 
   onDepthCleared() {
     if (this.depthTransitioning) return;
+    playSFX(this, 'sfx_depth_clear');
     this.recordMove({ type: 'depth_clear', depth: this.depth, enemiesRemaining: 0 });
     this.fullClearsCount += 1; // advancing a depth always means every enemy on it died - there's no other way through
     this.depthTransitioning = true;

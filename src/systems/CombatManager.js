@@ -1,4 +1,5 @@
 import { ABILITY_BASE } from '../utils/constants.js';
+import { playSFX } from './SoundManager.js';
 
 // Resolves the effects of matched tiles against enemies, and enemy attacks
 // against the hero, folding in whatever run modifiers (camp upgrades +
@@ -90,6 +91,7 @@ export default class CombatManager {
       if (others.length > 0) targets.push(others[0]);
     }
 
+    playSFX(this.scene, 'sfx_sword');
     for (const t of targets) {
       this.strikeEnemy(t, damage, 'sword');
     }
@@ -112,6 +114,7 @@ export default class CombatManager {
     const block = ABILITY_BASE.shield.block + this.mod('shieldBlock') + (this.modifiers.dungeonMaster ? 1 : 0);
     const duration = 1 + this.mod('blockDurationBonus') + (this.modifiers.ironWall ? 1 : 0);
     this.hero.addBlock(block, duration);
+    playSFX(this.scene, 'sfx_shield');
     this.log(`Shield tile grants ${block} Block.`);
     await this.repeatIfTimeWarp(() => this.hero.addBlock(block, duration));
     return { ability: 'shield', block };
@@ -121,6 +124,7 @@ export default class CombatManager {
     const enemies = this.livingEnemies();
     if (enemies.length === 0) return null;
 
+    playSFX(this.scene, 'sfx_magic');
     let damage = ABILITY_BASE.magic.damage + this.mod('magicDamage') + (this.modifiers.dungeonMaster ? 1 : 0);
     if (this.modifiers.crossMagic) damage += 2;
     if (matchedCells.length >= 4 && this.modifiers.spellWeaving) damage *= 2;
@@ -165,6 +169,7 @@ export default class CombatManager {
     }
     const healed = this.hero.heal(heal);
     if (block) this.hero.addBlock(block, 1);
+    playSFX(this.scene, 'sfx_potion');
     this.log(`Potion tile heals ${healed} HP.`);
     await this.repeatIfTimeWarp(() => this.hero.heal(heal));
     return { ability: 'potion', healed };

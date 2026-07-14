@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, JOURNAL_TREE, DEPTH } from '../utils/constants.js';
 import { saveJournal, loadJournalLocal } from '../utils/api.js';
+import { playSFX } from '../systems/SoundManager.js';
 
 const TAB_TEXT_COLOR = { blade: '#cc2222', aegis: '#2244cc', arcanum: '#7722cc' };
 const TAB_TEXT_STYLE_EXTRA = { stroke: '#1a0f05', strokeThickness: 3, shadow: { offsetX: 0, offsetY: 1, color: '#000000', blur: 2, fill: true } };
@@ -62,7 +63,7 @@ export default class JournalScene extends Phaser.Scene {
       color: '#f5e6d3'
     }).setOrigin(0.5).setDepth(DEPTH.HUD);
 
-    backBtn.on('pointerup', () => this.scene.start('MenuScene'));
+    backBtn.on('pointerup', () => { playSFX(this, 'sfx_button'); this.scene.start('MenuScene'); });
     backBtn.on('pointerover', () => backBtn.setTint(0xcccccc));
     backBtn.on('pointerout', () => backBtn.clearTint());
 
@@ -112,6 +113,7 @@ export default class JournalScene extends Phaser.Scene {
   }
 
   switchTab(tab) {
+    playSFX(this, 'sfx_button');
     this.bladeContainer.setVisible(false);
     this.aegisContainer.setVisible(false);
     this.arcanumContainer.setVisible(false);
@@ -231,6 +233,7 @@ export default class JournalScene extends Phaser.Scene {
     const node = this.findNode(nodeId);
     if (!node || !this.canUnlockNode(node)) return;
 
+    playSFX(this, 'sfx_unlock');
     const insight = this.registry.get('insight') || 0;
     this.registry.set('insight', insight - node.cost);
 

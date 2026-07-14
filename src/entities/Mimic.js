@@ -1,5 +1,6 @@
 import Enemy from './Enemy.js';
 import { ENEMY_STATS, MIMIC_TILE_COLOR, TILE_TEXTURE_KEY } from '../utils/constants.js';
+import { playSFX } from '../systems/SoundManager.js';
 
 export const MIMIC_STATE = { DISGUISED: 'disguised', REVEALED: 'revealed' };
 
@@ -48,6 +49,7 @@ export default class Mimic extends Enemy {
     if (this.state === MIMIC_STATE.DISGUISED && !this.hasAmbushed && this.isAdjacentTo(hero)) {
       this.hasAmbushed = true;
       this.reveal();
+      playSFX(this.scene, 'sfx_mimic_ambush');
       combatManager.dealDamageToHero(this.ambushDamage, this, 'A Mimic Chest springs its ambush!');
     }
   }

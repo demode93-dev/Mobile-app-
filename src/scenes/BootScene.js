@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../utils/constants.js';
 import JournalScene from './JournalScene.js';
 import { loadGemsLocal } from '../utils/api.js';
+import SoundManager, { BGM_KEY, SFX_KEYS } from '../systems/SoundManager.js';
 
 const SPRITE_KEYS = ['hero', 'skeleton', 'mimic', 'cultist', 'bat', 'mushroom', 'wraith', 'tile_red', 'tile_blue', 'tile_purple', 'tile_green', 'tile_brown', 'grid'];
 const UI_KEYS = ['parchment_bg', 'button_wood', 'campfire_card', 'card_common', 'card_rare', 'card_legendary', 'journal_bg'];
@@ -36,6 +37,13 @@ export default class BootScene extends Phaser.Scene {
     for (const key of SPRITE_KEYS) this.load.image(key, `assets/sprites/${key}.png`);
     for (const key of UI_KEYS) this.load.image(key, `assets/ui/${key}.png`);
 
+    // Audio is optional - a missing file just triggers the same 'loaderror'
+    // above and is left out of the audio cache. SoundManager checks the
+    // cache before every play, so the game runs identically with or without
+    // these files present.
+    this.load.audio(BGM_KEY, `assets/audio/${BGM_KEY}.mp3`);
+    for (const key of SFX_KEYS) this.load.audio(key, `assets/audio/${key}.mp3`);
+
     this.load.once('complete', () => {
       barBg.destroy();
       bar.destroy();
@@ -55,6 +63,9 @@ export default class BootScene extends Phaser.Scene {
     }
     if (this.registry.get('gems') === undefined) {
       this.registry.set('gems', loadGemsLocal());
+    }
+    if (this.registry.get('soundManager') === undefined) {
+      this.registry.set('soundManager', new SoundManager(this));
     }
     this.scene.start('MenuScene');
   }
