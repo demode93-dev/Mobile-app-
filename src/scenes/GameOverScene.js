@@ -67,9 +67,9 @@ export default class GameOverScene extends Phaser.Scene {
 
     this.submitStatusText = this.add.text(GAME_WIDTH / 2, dividerY + 60, '', { fontSize: '12px', color: '#5b3a1e' }).setOrigin(0.5).setDepth(DEPTH.HUD);
 
-    this.submitBtn = this.makeButton(GAME_WIDTH / 2, dividerY + 110, 'Submit Score', () => this.submitScore(data));
-    this.makeButton(GAME_WIDTH / 2, dividerY + 190, 'View Leaderboard', () => this.scene.start('LeaderboardScene'));
-    this.makeButton(GAME_WIDTH / 2, dividerY + 270, 'Main Menu', () => this.scene.start('MenuScene'));
+    this.submitBtn = this.makeButton(GAME_WIDTH / 2, dividerY + 110, 'Submit Score', () => this.submitScore(data), { textColor: '#4cff4c', pill: true });
+    this.makeButton(GAME_WIDTH / 2, dividerY + 190, 'View Leaderboard', () => this.scene.start('LeaderboardScene'), { textColor: '#ffcc44', pill: true });
+    this.makeButton(GAME_WIDTH / 2, dividerY + 270, 'Main Menu', () => this.scene.start('MenuScene'), { textColor: '#ffffff', pill: true });
   }
 
   async submitScore(data) {
@@ -112,13 +112,25 @@ export default class GameOverScene extends Phaser.Scene {
     }
   }
 
-  makeButton(x, y, label, onClick) {
+  makeButton(x, y, label, onClick, { textColor = '#f5e6c8', pill = false } = {}) {
     const btn = this.add.image(x, y, 'button_wood').setDisplaySize(260, 70).setInteractive({ useHandCursor: true }).setDepth(DEPTH.HUD);
-    const text = this.add.text(x, y, label, { fontFamily: 'Georgia, serif', fontSize: '16px', color: '#f5e6c8', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.HUD);
-    btn.on('pointerover', () => this.tweens.add({ targets: [btn, text], scale: 1.05, duration: 120 }));
-    btn.on('pointerout', () => this.tweens.add({ targets: [btn, text], scale: 1, duration: 120 }));
+    const targets = [btn];
+
+    if (pill) {
+      // Dark semi-transparent pill behind the label so bright text colors
+      // (chosen for contrast against the wood grain) don't fight the
+      // texture's own light/dark grain variation underneath.
+      const pillBg = this.add.rectangle(x, y, 220, 34, 0x1a0f05, 0.65).setDepth(DEPTH.HUD);
+      targets.push(pillBg);
+    }
+
+    const text = this.add.text(x, y, label, { fontFamily: 'Georgia, serif', fontSize: '16px', color: textColor, fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.HUD);
+    targets.push(text);
+
+    btn.on('pointerover', () => this.tweens.add({ targets, scale: 1.05, duration: 120 }));
+    btn.on('pointerout', () => this.tweens.add({ targets, scale: 1, duration: 120 }));
     btn.on('pointerdown', () => {
-      this.tweens.add({ targets: [btn, text], scale: 0.95, duration: 80, yoyo: true, onComplete: onClick });
+      this.tweens.add({ targets, scale: 0.95, duration: 80, yoyo: true, onComplete: onClick });
     });
     return btn;
   }
