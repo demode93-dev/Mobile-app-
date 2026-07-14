@@ -180,6 +180,7 @@ export default class TurnManager {
 
   async runEnemyPhase() {
     if (this.hero.isDead) return;
+    this.scene.turnCount = (this.scene.turnCount || 0) + 1;
     this.scene.events.emit('enemyPhaseStart');
     const occupied = new Set(this.getEnemies().filter(e => !e.isDead).map(e => `${e.row},${e.col}`));
     const poisonImmune = !!this.upgradeManager.modifiers.poisonImmune;

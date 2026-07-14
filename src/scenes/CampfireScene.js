@@ -92,6 +92,7 @@ export default class CampfireScene extends Phaser.Scene {
 
   selectCard(card) {
     this.gameScene.recordMove({ type: 'camp_upgrade', chosen: card.id, options: this.options.map(c => c.id) });
+    this.gameScene.unusedUpgradesCount += this.options.length - 1;
     this.upgradeManagerApply(card);
     this.scene.stop();
     this.gameScene.scene.resume();

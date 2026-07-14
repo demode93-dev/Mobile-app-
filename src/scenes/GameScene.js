@@ -39,6 +39,10 @@ export default class GameScene extends Phaser.Scene {
     this.isDailyDungeon = this.isTournamentRun; // kept as an alias for readability at call sites
     this.rng = this.isTournamentRun ? createSeededRng(this.dailyDungeonSeed) : null;
     this.moveHistory = [];
+    // Tournament scoring inputs (see onHeroDied() for the formula).
+    this.turnCount = 0;
+    this.fullClearsCount = 0;
+    this.unusedUpgradesCount = 0;
   }
 
   create() {
@@ -239,6 +243,7 @@ export default class GameScene extends Phaser.Scene {
   onDepthCleared() {
     if (this.depthTransitioning) return;
     this.recordMove({ type: 'depth_clear', depth: this.depth, enemiesRemaining: 0 });
+    this.fullClearsCount += 1; // advancing a depth always means every enemy on it died - there's no other way through
     this.depthTransitioning = true;
     this.input.enabled = false;
     const cardCount = this.upgradeManager.modifiers.campfireCardCount || 3;
@@ -268,14 +273,64 @@ export default class GameScene extends Phaser.Scene {
       this.refreshHud();
       return;
     }
-    this.recordMove({ type: 'death', depth: this.depth, enemiesKilled: this.enemiesKilled, finalHP: 0 });
     this.input.enabled = false;
+
+    let tournamentScore = null;
+    if (this.isTournamentRun) {
+      tournamentScore = this.computeTournamentScore();
+      this.recordMove({
+        action: 'death',
+        depth: tournamentScore.finalDepth,
+        turn: this.turnCount,
+        data: {
+          enemiesKilled: tournamentScore.totalEnemiesKilled,
+          fullClears: tournamentScore.fullClears,
+          unusedUpgrades: tournamentScore.unusedUpgrades,
+          finalScore: tournamentScore.finalScore
+        }
+      });
+    }
+
     const earned = computeInsightEarned({ depthReached: this.depth, enemiesKilled: this.enemiesKilled });
     const insight = (this.registry.get('insight') || 0) + earned;
     this.registry.set('insight', insight);
     const unlocked = Object.keys(this.registry.get('journalNodes') || {});
     saveJournal({ insight, unlocked });
-    this.scene.start('GameOverScene', { depth: this.depth, enemiesKilled: this.enemiesKilled, insightEarned: earned });
+    this.scene.start('GameOverScene', {
+      depth: this.depth,
+      enemiesKilled: this.enemiesKilled,
+      insightEarned: earned,
+      isTournamentRun: this.isTournamentRun,
+      dailyDungeonSeed: this.dailyDungeonSeed,
+      moveHistory: this.moveHistory,
+      tournamentScore
+    });
+  }
+
+  // Score formula (Daily Dungeon tournament runs only):
+  //   depthScore = finalDepth * 100
+  //   killScore = totalEnemiesKilled * 10
+  //   upgradeScore = unusedUpgrades * 5   (campfire cards offered but not picked)
+  //   clearBonus = fullClears * 25        (depths where every enemy died before advancing)
+  //   finalScore = depthScore + killScore + upgradeScore + clearBonus
+  // turnCount isn't part of the score - it's carried on the death move-history
+  // event for leaderboard tiebreaking (fewer turns wins a tie).
+  computeTournamentScore() {
+    const finalDepth = this.depth;
+    const totalEnemiesKilled = this.enemiesKilled;
+    const fullClears = this.fullClearsCount;
+    const unusedUpgrades = this.unusedUpgradesCount;
+
+    const depthScore = finalDepth * 100;
+    const killScore = totalEnemiesKilled * 10;
+    const upgradeScore = unusedUpgrades * 5;
+    const clearBonus = fullClears * 25;
+    const finalScore = depthScore + killScore + upgradeScore + clearBonus;
+
+    return {
+      finalDepth, totalEnemiesKilled, fullClears, unusedUpgrades,
+      depthScore, killScore, upgradeScore, clearBonus, finalScore
+    };
   }
 
   cleanup() {
