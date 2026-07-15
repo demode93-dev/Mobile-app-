@@ -11,7 +11,10 @@
       padding: 0;
       width: 100%;
       height: 100%;
-      background: #1a1109;
+      background-color: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
       overflow: hidden;
       overscroll-behavior: none;
       -webkit-user-select: none;
@@ -19,8 +22,8 @@
       touch-action: none;
     }
     #game-container {
-      width: 100%;
-      height: 100%;
+      width: 95vmin;
+      height: 95vmin;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -32,6 +35,20 @@
 </head>
 <body>
   <div id="game-container"></div>
+  <!--
+    Google H5 Games Ads (Ad Placement API) bootstrap shim. This just defines
+    the queue + adConfig call the real SDK expects - it's safe to run even
+    with no publisher ID configured, since nothing ever drains the queue
+    until the real script (loaded conditionally by AdSenseProvider.js, see
+    below) shows up. VITE_ADSENSE_CLIENT_ID unset -> AdSenseProvider never
+    injects that script -> AdSenseProvider.configured stays false ->
+    BootScene falls back to AdManager's mock provider automatically.
+  -->
+  <script>
+    window.adsbygoogle = window.adsbygoogle || [];
+    window.adBreak = window.adConfig = function (o) { window.adsbygoogle.push(o); };
+    adConfig({ preloadAdBreaks: 'on', sound: 'on' });
+  </script>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

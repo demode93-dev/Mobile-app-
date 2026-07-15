@@ -1,19 +1,21 @@
-// Mock rewarded-ad system. MockAdProvider implements the same {load, show}
-// shape a real SDK wrapper (AdMob, IMA, etc.) would, so swapping in a real
-// provider later is a one-file change - nothing that calls showRewardedAd()
-// needs to know the difference.
-class MockAdProvider {
-  async load() {
+// Rewarded-ad system. Providers implement a single requestReward(placementId,
+// onProgress) method returning { success: true } or { success: false, reason }
+// - this shape matches how real ad SDKs actually work (one call that
+// internally handles fill-checking + playback + completion), so swapping
+// providers is a one-file change and nothing that calls showRewardedAd()
+// needs to know the difference. See AdSenseProvider.js for the real
+// (Google H5 Games Ads) implementation.
+export class MockAdProvider {
+  async requestReward(placementId, onProgress = () => {}) {
     await wait(300 + Math.random() * 400); // simulated fill latency
-    return Math.random() > 0.1; // ~10% no-fill, matching real ad SDK behavior
-  }
+    if (Math.random() < 0.1) return { success: false, reason: 'no_fill' }; // ~10% no-fill, matching real ad SDK behavior
 
-  async show(onProgress) {
     const steps = 12;
     for (let i = 1; i <= steps; i++) {
       await wait(150);
       onProgress(i / steps);
     }
+    return { success: true };
   }
 }
 
@@ -22,12 +24,9 @@ export default class AdManager {
     this.provider = provider;
   }
 
-  // Returns { success: true } or { success: false, reason: 'no_fill' }.
+  // Returns { success: true } or { success: false, reason: '...' }.
   async showRewardedAd(placementId, onProgress = () => {}) {
-    const filled = await this.provider.load(placementId);
-    if (!filled) return { success: false, reason: 'no_fill' };
-    await this.provider.show(onProgress);
-    return { success: true };
+    return this.provider.requestReward(placementId, onProgress);
   }
 }
 

@@ -1,13 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, DEPTH, STORAGE_KEYS } from '../utils/constants.js';
-import { verifyAdReward, submitTournamentScore, saveJournal } from '../utils/api.js';
+import { verifyAdReward, submitGoldRun } from '../utils/api.js';
 import { playSFX } from '../systems/SoundManager.js';
-
-// +50% of the run's earned Insight, minimum 5 - keeps the reward meaningful
-// even on a very short/early-death run.
-function bonusInsightFor(earned) {
-  return Math.max(5, Math.round(earned * 0.5));
-}
 
 export default class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -16,92 +10,53 @@ export default class GameOverScene extends Phaser.Scene {
 
   create(data) {
     this.runData = data;
-    this.secondWindUsed = false;
     this.scoreSubmitted = false;
+    this.adUsed = false;
 
     this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'parchment_bg').setDisplaySize(GAME_WIDTH, GAME_HEIGHT).setDepth(DEPTH.BACKGROUND);
 
-    if (data.isTournamentRun && data.tournamentScore) {
-      this.buildTournamentResult(data);
+    if (data.result === 'win') {
+      this.buildWinResult(data);
     } else {
-      this.buildStandardResult(data);
+      this.buildLossResult(data);
     }
   }
 
-  buildStandardResult(data) {
-    this.add.text(GAME_WIDTH / 2, 130, 'YOU HAVE FALLEN', { fontSize: '28px', color: '#7b2d3e', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.HUD);
+  // -------------------------------------------------------------------
+  // Win (Leave Dungeon)
+  // -------------------------------------------------------------------
+  buildWinResult(data) {
+    this.goldBanked = data.goldBanked;
 
-    this.insightEarned = data.insightEarned;
-    this.resultsText = this.add.text(GAME_WIDTH / 2, 220, this.resultsLines(data), {
+    this.add.text(GAME_WIDTH / 2, 140, 'DUNGEON ESCAPED', { fontSize: '26px', color: '#2f6f3e', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.HUD);
+
+    this.resultsText = this.add.text(GAME_WIDTH / 2, 230, this.winLines(), {
       fontSize: '18px', color: '#3a2013', align: 'center', lineSpacing: 10
     }).setOrigin(0.5).setDepth(DEPTH.HUD);
 
-    this.secondWindBtn = this.makeButton(GAME_WIDTH / 2, 400, 'Second Wind (Watch Ad)', () => this.watchAdAndRevive());
-    this.bonusInsightBtn = this.makeButton(GAME_WIDTH / 2, 475, 'Double Insight (Watch Ad)', () => this.watchAdForBonusInsight(data));
-    this.makeButton(GAME_WIDTH / 2, 555, 'Expedition Journal', () => this.scene.start('JournalScene'));
-    this.makeButton(GAME_WIDTH / 2, 630, 'Main Menu', () => this.scene.start('MenuScene'));
+    this.doubleGoldBtn = this.makeButton(GAME_WIDTH / 2, 400, 'Double Gold (Watch Ad)', () => this.watchAdForDoubleGold(), { textColor: '#4cff4c', pill: true });
+    this.submitStatusText = this.add.text(GAME_WIDTH / 2, 455, '', { fontSize: '12px', color: '#5b3a1e' }).setOrigin(0.5).setDepth(DEPTH.HUD);
+    this.submitBtn = this.makeButton(GAME_WIDTH / 2, 500, 'Submit Score', () => this.submitScore(), { textColor: '#ffcc44', pill: true });
+    this.makeButton(GAME_WIDTH / 2, 575, 'View Leaderboard', () => this.scene.start('LeaderboardScene'));
+    this.makeButton(GAME_WIDTH / 2, 650, 'Main Menu', () => this.scene.start('MenuScene'));
   }
 
-  resultsLines(data) {
+  winLines() {
     return [
-      `Depth Reached: ${data.depth}`,
-      `Enemies Slain: ${data.enemiesKilled}`,
-      `Insight Earned: ${this.insightEarned}`
+      `Gold Banked: ${this.goldBanked}`,
+      `Meta-Currency Collected: ◆ ${this.runData.meta}`
     ].join('\n');
   }
 
-  // Tournament runs get a score breakdown instead of the Second Wind ad-revive
-  // path - a free unlimited-retry loop via ads would undermine the "one free
-  // entry per day" fairness the whole Daily Dungeon system is built on.
-  buildTournamentResult(data) {
-    const s = data.tournamentScore;
-
-    this.add.text(GAME_WIDTH / 2, 90, 'DAILY DUNGEON', { fontSize: '22px', color: '#7b2d3e', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.HUD);
-    this.add.text(GAME_WIDTH / 2, 118, 'Run Complete', { fontSize: '16px', color: '#5b3a1e' }).setOrigin(0.5).setDepth(DEPTH.HUD);
-
-    const rows = [
-      ['Depth Reached', s.finalDepth, s.depthScore],
-      ['Enemies Killed', s.totalEnemiesKilled, s.killScore],
-      ['Full Clears', s.fullClears, s.clearBonus],
-      ['Cards Left', s.unusedUpgrades, s.upgradeScore]
-    ];
-
-    const startY = 175;
-    const rowSpacing = 30;
-    rows.forEach(([label, count, points], i) => {
-      const y = startY + i * rowSpacing;
-      this.add.text(40, y, label, { fontSize: '14px', color: '#3a2013' }).setDepth(DEPTH.HUD);
-      this.add.text(GAME_WIDTH - 40, y, `${count}  ->  ${points}`, { fontSize: '14px', color: '#3a2013', fontStyle: 'bold' }).setOrigin(1, 0).setDepth(DEPTH.HUD);
-    });
-
-    const dividerY = startY + rows.length * rowSpacing + 6;
-    this.add.rectangle(GAME_WIDTH / 2, dividerY, GAME_WIDTH - 80, 2, 0x3a2013).setDepth(DEPTH.HUD);
-
-    this.add.text(40, dividerY + 14, 'Final Score', { fontSize: '16px', color: '#7b2d3e', fontStyle: 'bold' }).setDepth(DEPTH.HUD);
-    this.add.text(GAME_WIDTH - 40, dividerY + 14, `${s.finalScore}`, { fontSize: '18px', color: '#7b2d3e', fontStyle: 'bold' }).setOrigin(1, 0).setDepth(DEPTH.HUD);
-
-    this.submitStatusText = this.add.text(GAME_WIDTH / 2, dividerY + 60, '', { fontSize: '12px', color: '#5b3a1e' }).setOrigin(0.5).setDepth(DEPTH.HUD);
-
-    this.submitBtn = this.makeButton(GAME_WIDTH / 2, dividerY + 110, 'Submit Score', () => this.submitScore(data), { textColor: '#4cff4c', pill: true });
-    this.makeButton(GAME_WIDTH / 2, dividerY + 190, 'View Leaderboard', () => this.scene.start('LeaderboardScene'), { textColor: '#ffcc44', pill: true });
-    this.makeButton(GAME_WIDTH / 2, dividerY + 270, 'Main Menu', () => this.scene.start('MenuScene'), { textColor: '#ffffff', pill: true });
-  }
-
-  async submitScore(data) {
+  async submitScore() {
     if (this.scoreSubmitted) return;
     this.scoreSubmitted = true;
     this.submitStatusText.setText('Submitting...');
 
     const playerName = localStorage.getItem(STORAGE_KEYS.PLAYER_NAME) || 'You';
-    const result = await submitTournamentScore({
-      playerName,
-      seed: data.dailyDungeonSeed,
-      depthReached: data.tournamentScore.finalDepth,
-      score: data.tournamentScore.finalScore,
-      moveHistory: data.moveHistory
-    });
+    const result = await submitGoldRun({ playerName, gold: this.goldBanked });
 
-    // submitTournamentScore()'s offline fallback (see api.js) reports
+    // submitGoldRun()'s offline fallback (see api.js) reports
     // { ok: false, offline: true, message } - "no backend configured" is not
     // the same as "rejected", so offline has to be checked before ok.
     if (result.offline) {
@@ -114,78 +69,98 @@ export default class GameOverScene extends Phaser.Scene {
     }
   }
 
-  watchAdAndRevive() {
-    if (this.secondWindUsed) return;
-    this.secondWindUsed = true;
-    this.secondWindBtn.disableInteractive();
+  watchAdForDoubleGold() {
+    if (this.adUsed) return;
+    this.adUsed = true;
+    this.doubleGoldBtn.disableInteractive();
 
     this.scene.pause();
     this.scene.launch('AdOverlayScene', {
-      placementId: 'second_wind',
-      onComplete: (result) => this.onSecondWindAdComplete(result)
+      placementId: 'double_gold',
+      onComplete: (result) => this.onDoubleGoldAdComplete(result)
     });
   }
 
-  async onSecondWindAdComplete(result) {
+  async onDoubleGoldAdComplete(result) {
     this.scene.resume();
     if (!result.success) {
-      this.secondWindUsed = false;
-      this.secondWindBtn.setInteractive({ useHandCursor: true });
+      this.adUsed = false;
+      this.doubleGoldBtn.setInteractive({ useHandCursor: true });
       return;
     }
 
     // Showing the ad is a client-side event - this is the server-side
     // confirmation step that actually grants the reward.
-    const verify = await verifyAdReward('second_wind');
-    if (verify.ok) {
-      // Resume the expedition from the depth reached, with a freshly stocked hero.
-      this.scene.start('GameScene', { reviveDepth: this.runData.depth });
-    } else {
-      this.secondWindUsed = false;
-      this.secondWindBtn.setInteractive({ useHandCursor: true });
+    const verify = await verifyAdReward('double_gold');
+    if (!verify.ok) {
+      this.adUsed = false;
+      this.doubleGoldBtn.setInteractive({ useHandCursor: true });
+      return;
     }
+
+    this.goldBanked *= 2;
+    this.resultsText.setText(this.winLines());
+    this.doubleGoldBtn.setTint(0x4cff4c);
   }
 
-  watchAdForBonusInsight(data) {
-    if (this.bonusInsightUsed) return;
-    this.bonusInsightUsed = true;
-    this.bonusInsightBtn.disableInteractive();
+  // -------------------------------------------------------------------
+  // Loss (HP reached 0)
+  // -------------------------------------------------------------------
+  buildLossResult(data) {
+    this.goldLost = data.goldLost;
+    this.goldSalvaged = 0;
+
+    this.add.text(GAME_WIDTH / 2, 140, 'YOU HAVE FALLEN', { fontSize: '26px', color: '#7b2d3e', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.HUD);
+
+    this.resultsText = this.add.text(GAME_WIDTH / 2, 230, this.lossLines(), {
+      fontSize: '18px', color: '#3a2013', align: 'center', lineSpacing: 10
+    }).setOrigin(0.5).setDepth(DEPTH.HUD);
+
+    this.salvageBtn = this.makeButton(GAME_WIDTH / 2, 400, 'Salvage Half Your Gold (Watch Ad)', () => this.watchAdForSalvage(), { textColor: '#4cff4c', pill: true });
+    this.makeButton(GAME_WIDTH / 2, 500, 'Main Menu', () => this.scene.start('MenuScene'));
+  }
+
+  lossLines() {
+    const goldLine = this.goldSalvaged > 0 ? `Gold Salvaged: ${this.goldSalvaged}` : `Gold Lost: ${this.goldLost}`;
+    return [
+      goldLine,
+      `Meta-Currency Kept: ◆ ${this.runData.meta}`
+    ].join('\n');
+  }
+
+  watchAdForSalvage() {
+    if (this.adUsed) return;
+    this.adUsed = true;
+    this.salvageBtn.disableInteractive();
 
     this.scene.pause();
     this.scene.launch('AdOverlayScene', {
-      placementId: 'bonus_insight',
-      onComplete: (result) => this.onBonusInsightAdComplete(result, data)
+      placementId: 'salvage_gold',
+      onComplete: (result) => this.onSalvageAdComplete(result)
     });
   }
 
-  async onBonusInsightAdComplete(result, data) {
+  async onSalvageAdComplete(result) {
     this.scene.resume();
     if (!result.success) {
-      this.bonusInsightUsed = false;
-      this.bonusInsightBtn.setInteractive({ useHandCursor: true });
+      this.adUsed = false;
+      this.salvageBtn.setInteractive({ useHandCursor: true });
       return;
     }
 
-    const verify = await verifyAdReward('bonus_insight');
+    const verify = await verifyAdReward('salvage_gold');
     if (!verify.ok) {
-      this.bonusInsightUsed = false;
-      this.bonusInsightBtn.setInteractive({ useHandCursor: true });
+      this.adUsed = false;
+      this.salvageBtn.setInteractive({ useHandCursor: true });
       return;
     }
 
-    // Bonus is granted on top of the insight GameScene already credited on
-    // death - not re-earned, just topped up.
-    const bonus = bonusInsightFor(data.insightEarned);
-    this.insightEarned += bonus;
-    const insight = (this.registry.get('insight') || 0) + bonus;
-    this.registry.set('insight', insight);
-    const unlocked = Object.keys(this.registry.get('journalNodes') || {});
-    saveJournal({ insight, unlocked });
-
-    this.resultsText.setText(this.resultsLines(data));
-    this.bonusInsightBtn.setTint(0x4cff4c);
+    this.goldSalvaged = Math.floor(this.goldLost / 2);
+    this.resultsText.setText(this.lossLines());
+    this.salvageBtn.setTint(0x4cff4c);
   }
 
+  // -------------------------------------------------------------------
   makeButton(x, y, label, onClick, { textColor = '#f5e6c8', pill = false } = {}) {
     const btn = this.add.image(x, y, 'button_wood').setDisplaySize(260, 70).setInteractive({ useHandCursor: true }).setDepth(DEPTH.HUD);
     const targets = [btn];

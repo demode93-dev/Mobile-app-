@@ -1,17 +1,20 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../utils/constants.js';
-import JournalScene from './JournalScene.js';
-import { loadGemsLocal } from '../utils/api.js';
+import { loadMetaCurrencyLocal } from '../utils/api.js';
 import SoundManager, { BGM_KEY, SFX_KEYS } from '../systems/SoundManager.js';
-import AdManager from '../systems/AdManager.js';
+import AdManager, { MockAdProvider } from '../systems/AdManager.js';
+import AdSenseProvider from '../systems/AdSenseProvider.js';
 
-const SPRITE_KEYS = ['hero', 'skeleton', 'mimic', 'cultist', 'bat', 'mushroom', 'wraith', 'tile_red', 'tile_blue', 'tile_purple', 'tile_green', 'tile_brown', 'grid'];
-const UI_KEYS = ['parchment_bg', 'button_wood', 'campfire_card', 'card_common', 'card_rare', 'card_legendary', 'journal_bg'];
+// 'skeleton' is reused as the generic enemy tile icon, 'hero' as a static
+// HUD portrait - no need for new art there.
+const SPRITE_KEYS = ['hero', 'skeleton', 'icon_gold', 'icon_weapon', 'icon_meta'];
+const UI_KEYS = ['parchment_bg', 'button_wood', 'tile_facedown', 'tile_empty'];
 
 const FALLBACK_COLORS = {
-  hero: 0xe8c07d, skeleton: 0xe5e5e0, mimic: 0x8b5a2b, cultist: 0x7b2d3e, bat: 0x4a4258, mushroom: 0xc0392b, wraith: 0x5b6ee1,
-  tile_red: 0xc0392b, tile_blue: 0x2e6da4, tile_purple: 0x8e44ad, tile_green: 0x27ae60, tile_brown: 0x8b5a2b, grid: 0x3a3a3a,
-  parchment_bg: 0xe8d9b5, button_wood: 0x8b5a2b, campfire_card: 0xd9a441, card_common: 0xb0b0a8, card_rare: 0x4a90d9, card_legendary: 0xe0a934, journal_bg: 0x6b3f26
+  hero: 0xe8c07d, skeleton: 0xe5e5e0,
+  icon_gold: 0xd9a441, icon_weapon: 0x8899aa, icon_meta: 0x2fbfae,
+  parchment_bg: 0xe8d9b5, button_wood: 0x8b5a2b,
+  tile_facedown: 0x2a2a2a, tile_empty: 0x4a4a4a
 };
 
 export default class BootScene extends Phaser.Scene {
@@ -59,17 +62,19 @@ export default class BootScene extends Phaser.Scene {
         this.generatePlaceholder(key);
       }
     }
-    if (this.registry.get('insight') === undefined) {
-      JournalScene.loadJournal(this);
-    }
-    if (this.registry.get('gems') === undefined) {
-      this.registry.set('gems', loadGemsLocal());
+    if (this.registry.get('metaCurrency') === undefined) {
+      this.registry.set('metaCurrency', loadMetaCurrencyLocal());
     }
     if (this.registry.get('soundManager') === undefined) {
       this.registry.set('soundManager', new SoundManager(this));
     }
     if (this.registry.get('adManager') === undefined) {
-      this.registry.set('adManager', new AdManager());
+      // Real Google AdSense for Games provider if a publisher client ID is
+      // configured (see .env.example), otherwise the mock - keeps the ad
+      // flow fully testable without real credentials.
+      const adSense = new AdSenseProvider();
+      const provider = adSense.configured ? adSense : new MockAdProvider();
+      this.registry.set('adManager', new AdManager(provider));
     }
     this.scene.start('MenuScene');
   }
@@ -77,20 +82,6 @@ export default class BootScene extends Phaser.Scene {
   generatePlaceholder(key) {
     const color = FALLBACK_COLORS[key] ?? 0x888888;
     const g = this.make.graphics({ x: 0, y: 0, add: false });
-
-    if (key === 'grid') {
-      const size = 320;
-      g.fillStyle(color, 1);
-      g.fillRect(0, 0, size, size);
-      g.lineStyle(2, 0x555555, 1);
-      for (let i = 0; i <= 5; i++) {
-        g.lineBetween(i * 64, 0, i * 64, size);
-        g.lineBetween(0, i * 64, size, i * 64);
-      }
-      g.generateTexture(key, size, size);
-      g.destroy();
-      return;
-    }
 
     const isTile = key.startsWith('tile_');
     const isSprite = SPRITE_KEYS.includes(key) && !isTile;

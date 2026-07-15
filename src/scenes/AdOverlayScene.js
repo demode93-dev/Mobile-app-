@@ -2,10 +2,10 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, DEPTH } from '../utils/constants.js';
 import { playSFX } from '../systems/SoundManager.js';
 
-// Shared mock "watching a rewarded ad" modal for all three ad placements
-// (Second Wind revive, Bonus Insight, Campfire extra redraw). Launched on
-// top of the calling scene (paused, matching CampfireScene/RewardPopupScene's
-// modal pattern) with { placementId, onComplete(result) }; result is
+// Shared mock "watching a rewarded ad" modal for all ad placements
+// (Second Wind revive, Double Gold, Salvage Gold). Launched on top of the
+// calling scene (paused, same pause-and-overlay pattern GameOverScene uses
+// elsewhere) with { placementId, onComplete(result) }; result is
 // { success: true } or { success: false, reason: 'no_fill' }.
 export default class AdOverlayScene extends Phaser.Scene {
   constructor() {
