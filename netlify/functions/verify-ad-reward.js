@@ -1,6 +1,7 @@
-// Server-side verification for rewarded-ad completions (used by the
-// GameOverScene "Second Wind" revive). Expects an HMAC-signed token issued
-// by the ad SDK's completion callback: `${playerId}.${timestamp}.${hmac}`.
+// Server-side verification for rewarded-ad completions (used by
+// GameOverScene's Double Gold / Salvage Gold placements). Expects an
+// HMAC-signed token issued by the ad SDK's completion callback:
+// `${playerId}.${timestamp}.${hmac}`.
 // If AD_REWARD_SECRET isn't configured, trusts the client (dev/offline mode)
 // so the feature keeps working during local testing.
 //

@@ -2,10 +2,10 @@
 // game is completely playable offline / without a deployed backend.
 
 import { STORAGE_KEYS } from './constants.js';
-import { seedFromDate } from './rng.js';
 
 const FUNCTIONS_BASE = '/.netlify/functions';
 const NETWORK_TIMEOUT_MS = 4000;
+const MAX_LOCAL_SCORES = 100;
 
 async function callFunction(name, options = {}) {
   const controller = new AbortController();
@@ -26,8 +26,7 @@ async function callFunction(name, options = {}) {
   }
 }
 
-// Exported (not just used internally) so other modules - e.g. rewards.js,
-// which needs to read yesterday's local scores - share one localStorage
+// Exported (not just used internally) so other modules share one localStorage
 // read/write path instead of re-implementing the try/catch guards.
 export function readLocal(key, fallback) {
   try {
@@ -47,71 +46,20 @@ export function writeLocal(key, value) {
 }
 
 // ---------------------------------------------------------------------------
-// Journal persistence
+// Meta-Currency - the rare, persistent currency kept regardless of whether a
+// run is won or lost. Local-only for now (no server endpoint).
 // ---------------------------------------------------------------------------
-// Stored as two plain localStorage keys (not one combined blob) so JournalScene
-// can read/write insight and unlocked-node state independently and instantly.
-export async function saveJournal({ insight, unlocked }) {
-  writeLocal(STORAGE_KEYS.INSIGHT, insight);
-  writeLocal(STORAGE_KEYS.JOURNAL_NODES, unlocked);
-  try {
-    await callFunction('update-journal', { method: 'POST', body: { insight, unlocked } });
-  } catch (e) {
-    // offline fallback already saved locally, nothing more to do
-  }
+export function loadMetaCurrencyLocal() {
+  return readLocal(STORAGE_KEYS.META_CURRENCY, 0);
 }
 
-export function loadJournalLocal() {
-  const insight = readLocal(STORAGE_KEYS.INSIGHT, 0);
-  const unlocked = readLocal(STORAGE_KEYS.JOURNAL_NODES, []);
-  return { insight, unlocked };
+export function saveMetaCurrencyLocal(amount) {
+  writeLocal(STORAGE_KEYS.META_CURRENCY, amount);
 }
 
 // ---------------------------------------------------------------------------
-// Daily dungeon / leaderboard
+// Gold run leaderboard
 // ---------------------------------------------------------------------------
-export async function getDailyDungeon() {
-  try {
-    return await callFunction('get-daily-dungeon');
-  } catch (e) {
-    const cached = readLocal(STORAGE_KEYS.DAILY_DUNGEON_CACHE, null);
-    const dateKey = new Date().toISOString().slice(0, 10);
-    if (cached && cached.date === dateKey) return cached;
-    // Offline: derive the same deterministic seed the server would, so an
-    // offline player still gets today's shared dungeon, not a private one.
-    const generated = { date: dateKey, seed: seedFromDate(dateKey), offline: true };
-    writeLocal(STORAGE_KEYS.DAILY_DUNGEON_CACHE, generated);
-    return generated;
-  }
-}
-
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-const SCORE_HISTORY_DAYS = 7;
-
-// Local-only leaderboard store, keyed by date so both "today" (for the live
-// leaderboard) and "yesterday" (for the reward check, which runs the day
-// after the dungeon closed) can be read back. Shape: { "<date>": [{name, depth, score}] }.
-// Pruned to the last SCORE_HISTORY_DAYS dates on every write so it can't grow unbounded.
-export function getScoresForDate(dateKey) {
-  const store = readLocal(STORAGE_KEYS.DAILY_SCORES, {});
-  return store[dateKey] || [];
-}
-
-function writeLocalScore({ playerName, depthReached, score }) {
-  const dateKey = todayKey();
-  const store = readLocal(STORAGE_KEYS.DAILY_SCORES, {});
-  store[dateKey] = [...(store[dateKey] || []), { name: playerName, depth: depthReached, score }];
-
-  const keptDates = Object.keys(store).sort().slice(-SCORE_HISTORY_DAYS);
-  const pruned = {};
-  for (const d of keptDates) pruned[d] = store[d];
-
-  writeLocal(STORAGE_KEYS.DAILY_SCORES, pruned);
-}
-
 // Standard competition ranking ("1224"): ties share a rank and the next rank
 // skips ahead by the number of tied entries, rather than compressing gaps.
 export function rankEntries(entries) {
@@ -127,47 +75,46 @@ export function rankEntries(entries) {
   });
 }
 
-export async function submitTournamentScore(payload) {
+function readLocalScores() {
+  return readLocal(STORAGE_KEYS.GOLD_RUN_SCORES, []);
+}
+
+function writeLocalScore({ playerName, gold }) {
+  const scores = readLocalScores();
+  scores.push({ name: playerName, score: gold });
+  scores.sort((a, b) => b.score - a.score);
+  writeLocal(STORAGE_KEYS.GOLD_RUN_SCORES, scores.slice(0, MAX_LOCAL_SCORES));
+}
+
+export async function submitGoldRun(payload) {
   // Persisted locally first so the leaderboard has something to show even if
   // the network call below succeeds now but a later reload happens offline.
   writeLocalScore(payload);
   try {
-    return await callFunction('submit-tournament-score', { method: 'POST', body: payload });
+    return await callFunction('submit-run-score', { method: 'POST', body: payload });
   } catch (e) {
     return { ok: false, offline: true, message: 'Score saved locally only (offline).' };
   }
 }
 
-export async function getLeaderboard() {
+export async function getGoldLeaderboard() {
   try {
     return await callFunction('get-leaderboard');
   } catch (e) {
-    const entries = rankEntries(getScoresForDate(todayKey()));
+    const entries = rankEntries(readLocalScores());
     return { ok: true, offline: true, entries };
   }
 }
 
 // ---------------------------------------------------------------------------
-// Gems - virtual currency earned only from Daily Dungeon leaderboard rewards.
-// Local-only for now (no server endpoint), same as the rest of the reward system.
-// ---------------------------------------------------------------------------
-export function loadGemsLocal() {
-  return readLocal(STORAGE_KEYS.GEMS, 0);
-}
-
-export function saveGemsLocal(gems) {
-  writeLocal(STORAGE_KEYS.GEMS, gems);
-}
-
-// ---------------------------------------------------------------------------
-// Rewarded ads (Second Wind revive) - standard ad-network monetization, no
-// real money changes hands between players.
+// Rewarded ads - standard ad-network monetization, no real money changes
+// hands between players.
 // ---------------------------------------------------------------------------
 export async function verifyAdReward(adToken) {
   try {
     return await callFunction('verify-ad-reward', { method: 'POST', body: { adToken } });
   } catch (e) {
-    // Offline: trust the client-side ad-complete callback so "Second Wind" still works in dev/offline play.
+    // Offline: trust the client-side ad-complete callback so ad placements still work in dev/offline play.
     return { ok: true, offline: true };
   }
 }

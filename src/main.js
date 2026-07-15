@@ -3,11 +3,8 @@ import { GAME_WIDTH, GAME_HEIGHT } from './utils/constants.js';
 import BootScene from './scenes/BootScene.js';
 import MenuScene from './scenes/MenuScene.js';
 import GameScene from './scenes/GameScene.js';
-import CampfireScene from './scenes/CampfireScene.js';
-import JournalScene from './scenes/JournalScene.js';
 import LeaderboardScene from './scenes/LeaderboardScene.js';
 import GameOverScene from './scenes/GameOverScene.js';
-import RewardPopupScene from './scenes/RewardPopupScene.js';
 import AdOverlayScene from './scenes/AdOverlayScene.js';
 
 const config = {
@@ -28,7 +25,7 @@ const config = {
   fps: {
     target: 60
   },
-  scene: [BootScene, MenuScene, GameScene, CampfireScene, JournalScene, LeaderboardScene, GameOverScene, RewardPopupScene, AdOverlayScene]
+  scene: [BootScene, MenuScene, GameScene, LeaderboardScene, GameOverScene, AdOverlayScene]
 };
 
 const game = new Phaser.Game(config);

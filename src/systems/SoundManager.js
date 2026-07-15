@@ -10,8 +10,8 @@ export const SFX_KEYS = [
 
 // Thin wrapper around Phaser's built-in (per-game, not per-scene) sound
 // manager. A single instance lives on the game registry - see BootScene -
-// so every scene and plain-JS system (CombatManager, Enemy, ...) shares one
-// mute/volume state instead of each holding its own.
+// so every scene and plain-JS system shares one mute/volume state instead
+// of each holding its own.
 //
 // Every play call is gated on the key actually being in the audio cache, so
 // if the real asset files described in the audio asset list haven't been
@@ -91,8 +91,8 @@ export default class SoundManager {
 }
 
 // Convenience for plain (non-Scene) classes that only hold a `scene`
-// reference - CombatManager, BoardManager, Enemy, Mimic - so call sites don't
-// each repeat the registry lookup + null-check.
+// reference (e.g. RevealGridManager) so call sites don't each repeat the
+// registry lookup + null-check.
 export function playSFX(scene, key) {
   const sm = scene.registry.get('soundManager');
   if (sm) sm.playSFX(key);
