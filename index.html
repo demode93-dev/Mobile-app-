@@ -34,6 +34,11 @@
       display: flex;
       justify-content: center;
       align-items: center;
+      /* On phones the canvas covers the container edge-to-edge (see
+         main.js's ENVELOP mode) by scaling slightly larger than this box -
+         clip that excess here rather than relying solely on the ancestor
+         html/body overflow rule. */
+      overflow: hidden;
     }
     canvas {
       image-rendering: pixelated;
