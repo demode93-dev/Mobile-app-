@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../utils/constants.js';
 import { loadMetaCurrencyLocal } from '../utils/api.js';
 import SoundManager, { BGM_KEY, SFX_KEYS } from '../systems/SoundManager.js';
-import AdManager from '../systems/AdManager.js';
+import AdManager, { MockAdProvider } from '../systems/AdManager.js';
+import AdSenseProvider from '../systems/AdSenseProvider.js';
 
 // 'skeleton' is reused as the generic enemy tile icon, 'hero' as a static
 // HUD portrait - no need for new art there.
@@ -68,7 +69,12 @@ export default class BootScene extends Phaser.Scene {
       this.registry.set('soundManager', new SoundManager(this));
     }
     if (this.registry.get('adManager') === undefined) {
-      this.registry.set('adManager', new AdManager());
+      // Real Google AdSense for Games provider if a publisher client ID is
+      // configured (see .env.example), otherwise the mock - keeps the ad
+      // flow fully testable without real credentials.
+      const adSense = new AdSenseProvider();
+      const provider = adSense.configured ? adSense : new MockAdProvider();
+      this.registry.set('adManager', new AdManager(provider));
     }
     this.scene.start('MenuScene');
   }
