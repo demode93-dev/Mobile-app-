@@ -29,7 +29,21 @@ import AdOverlayScene from './scenes/AdOverlayScene.js';
 // pinch/trackpad) is how you make it bigger instead.
 function pickScaleMode() {
   const W = window.innerWidth;
-  const H = window.innerHeight;
+  // Mobile Safari's address bar/toolbar are visible right at page load,
+  // which temporarily shrinks window.innerHeight well below the device's
+  // true height - judged against that snapshot alone, a device whose real
+  // shape is a great match for this game (e.g. an iPhone 13/14, whose
+  // 390x844 viewport is identical to the game's own resolution) looks like
+  // a bad one and incorrectly falls back to letterboxing. window.screen
+  // .height reflects the device's actual full height regardless of that
+  // transient browser-chrome state, so use whichever of the two is larger
+  // for this decision. Phaser's ScaleManager already listens for window
+  // resize and recalculates the real crop/scale amount live as the
+  // toolbar shows or hides, so locking in the right mode against the
+  // device's true shape - and letting that resize handling take it from
+  // there - gives genuine edge-to-edge fill once the chrome settles,
+  // instead of getting stuck on the address-bar-visible snapshot.
+  const H = Math.max(window.innerHeight, window.screen.height || 0);
   const envelopScale = Math.max(W / GAME_WIDTH, H / GAME_HEIGHT);
   const cropX = Math.max(0, (GAME_WIDTH * envelopScale - W) / envelopScale / 2);
   const cropY = Math.max(0, (GAME_HEIGHT * envelopScale - H) / envelopScale / 2);
