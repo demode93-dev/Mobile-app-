@@ -15,7 +15,12 @@ const config = {
   backgroundColor: '#1a1109',
   scale: {
     mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
+    // NO_CENTER, not CENTER_BOTH: #game-container already centers the
+    // canvas via CSS flexbox. Letting Phaser *also* apply its own
+    // centering margin on top of that stacks two centering mechanisms and
+    // produces an off-center canvas (visible as an asymmetric gap on one
+    // side instead of even letterboxing on both).
+    autoCenter: Phaser.Scale.NO_CENTER,
     width: GAME_WIDTH,
     height: GAME_HEIGHT
   },
