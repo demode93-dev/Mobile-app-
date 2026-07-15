@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#2b1a0f" />
   <title>Dungeon Sweeper</title>
   <style>
@@ -16,11 +16,21 @@
       overscroll-behavior: none;
       -webkit-user-select: none;
       user-select: none;
-      touch-action: none;
+      /* manipulation: allow pinch-zoom and panning (so players can size the
+         game themselves) while still suppressing double-tap-to-zoom, which
+         would otherwise trigger accidentally during fast tapping. */
+      touch-action: manipulation;
     }
     #game-container {
       width: 100%;
+      /* dvh tracks the *actually visible* viewport height on mobile browsers
+         (excluding the address bar / bottom toolbar). Plain vh measures the
+         height as if that browser chrome were hidden, which is taller than
+         what's on screen and left the canvas visibly undersized with bars
+         on the sides even on an exact-fit device. vh stays as the fallback
+         for browsers that don't support dvh yet. */
       height: 100vh;
+      height: 100dvh;
       display: flex;
       justify-content: center;
       align-items: center;
