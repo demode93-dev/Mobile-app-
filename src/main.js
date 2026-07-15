@@ -56,7 +56,20 @@ const config = {
     height: GAME_HEIGHT
   },
   input: {
-    activePointers: 2
+    activePointers: 2,
+    // Phaser calls event.preventDefault() on every touch event over the
+    // canvas by default (TouchManager's `capture` option, on by default) -
+    // that's a JS-level veto that suppresses the browser's own gesture
+    // handling regardless of the touch-action CSS, and it's what was
+    // blocking pinch-zoom specifically over the game area (letting it
+    // through only in the letterbox margins, which aren't part of the
+    // canvas). Turning it off lets native pinch-zoom work anywhere,
+    // including directly over gameplay - Phaser still receives and
+    // processes every touch for game input either way; this only affects
+    // whether the browser's own default handling also runs alongside it.
+    touch: {
+      capture: false
+    }
   },
   fps: {
     target: 60
