@@ -1,10 +1,13 @@
 # Dependencies
 node_modules/
 
-# Native wrapper output (Capacitor)
-/ios/
-/android/
-.capacitor/
+# Build output
+dist/
+.netlify/
+
+# Environment / secrets
+.env
+.env.local
 
 # OS / editor
 .DS_Store
