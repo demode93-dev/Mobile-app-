@@ -4,16 +4,18 @@ Mobile-friendly Next.js app for tracing a parking lot on satellite view,
 generating a real-time seal coating & striping estimate, and exporting a
 branded, client-safe PDF quote.
 
-The app has two views baked into the dashboard:
+The app has two views baked into the dashboard, matching the two people who
+ever use it:
 
-- **Estimator View** (top section) — square footage (auto-filled from the
-  map trace), space count, lump-sum material/labor totals, and an
-  auto-suggested Final Quote Price the estimator can type over. Internal
-  only.
-- **Client PDF View** (bottom section) — a live preview of exactly what the
-  "Export to PDF" button produces: numbered, customer-friendly service
-  lines that always add up to the Final Quote Price above, never the lump
-  sums or the markup percentage.
+- **Estimator View** (top section) — for the person standing in the parking
+  lot. Square footage (auto-filled from the map trace), space count,
+  lump-sum material/labor totals, a percent-or-flat-$ markup, and an
+  auto-suggested Final Quoted Price the Estimator can type over to round to
+  a clean number. Internal only.
+- **Property Owner View** (bottom section) — for the person buying the
+  service. A live preview of exactly what the "Export to PDF" button
+  produces: which services are included and one lump-sum Final Quoted
+  Price — never the material cost, labor cost, or markup.
 
 ## 1. Local setup
 

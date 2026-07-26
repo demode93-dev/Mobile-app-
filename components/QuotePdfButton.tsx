@@ -8,7 +8,7 @@ import type { TracedLot } from "./MapTracer";
 
 interface QuotePdfButtonProps {
   apiKey: string;
-  clientAddress: string;
+  propertyAddress: string;
   tracedLot: TracedLot | null;
   breakdown: EstimateBreakdown;
 }
@@ -26,7 +26,7 @@ function currency(value: number): string {
 
 async function buildQuotePdf({
   apiKey,
-  clientAddress,
+  propertyAddress,
   tracedLot,
   breakdown,
 }: QuotePdfButtonProps): Promise<jsPDF> {
@@ -73,7 +73,7 @@ async function buildQuotePdf({
   cursorY += 16;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  doc.text(clientAddress || "Address not provided", MARGIN, cursorY);
+  doc.text(propertyAddress || "Address not provided", MARGIN, cursorY);
   cursorY += 24;
 
   // ---- Traced lot snapshot --------------------------------------------
@@ -94,7 +94,7 @@ async function buildQuotePdf({
       doc.setFontSize(9);
       doc.setTextColor("#78716c");
       doc.text(
-        `Traced quoted area: ${Math.round(
+        `Serviced area shown above: ${Math.round(
           tracedLot.areaSqFt
         ).toLocaleString()} sq ft`,
         MARGIN,
@@ -109,45 +109,41 @@ async function buildQuotePdf({
     }
   }
 
-  // ---- Line items table -------------------------------------------------
+  // ---- Services included --------------------------------------------------
+  // Property Owners only ever see which services are included and the one
+  // lump-sum total - never a per-service price, labor rate, or margin.
   doc.setTextColor(BRAND_DARK);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.text("Service", MARGIN, cursorY);
-  doc.text("Price", PAGE_WIDTH - MARGIN, cursorY, { align: "right" });
+  doc.text("Services Included", MARGIN, cursorY);
   cursorY += 6;
   doc.setDrawColor(BRAND_DARK);
   doc.setLineWidth(1);
   doc.line(MARGIN, cursorY, PAGE_WIDTH - MARGIN, cursorY);
-  cursorY += 18;
+  cursorY += 22;
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  breakdown.customer.forEach((item, index) => {
-    if (index % 2 === 1) {
-      doc.setFillColor("#f5f5f4");
-      doc.rect(MARGIN, cursorY - 14, CONTENT_WIDTH, 22, "F");
-    }
+  doc.setFontSize(12);
+  breakdown.services.forEach((service) => {
+    doc.setFillColor(BRAND_YELLOW);
+    doc.circle(MARGIN + 4, cursorY - 4, 3, "F");
     doc.setTextColor(BRAND_DARK);
-    doc.text(item.label, MARGIN + 6, cursorY);
-    doc.text(currency(item.amount), PAGE_WIDTH - MARGIN - 6, cursorY, {
-      align: "right",
-    });
+    doc.text(service, MARGIN + 16, cursorY);
     cursorY += 22;
   });
 
-  cursorY += 4;
+  cursorY += 6;
   doc.setLineWidth(1.5);
   doc.line(MARGIN, cursorY, PAGE_WIDTH - MARGIN, cursorY);
-  cursorY += 22;
+  cursorY += 28;
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.text("Total Investment", MARGIN, cursorY);
-  doc.text(currency(breakdown.customerTotal), PAGE_WIDTH - MARGIN, cursorY, {
+  doc.setFontSize(16);
+  doc.text("Final Quoted Price", MARGIN, cursorY);
+  doc.text(currency(breakdown.finalPrice), PAGE_WIDTH - MARGIN, cursorY, {
     align: "right",
   });
-  cursorY += 36;
+  cursorY += 40;
 
   // ---- Terms & conditions -------------------------------------------------
   doc.setFont("helvetica", "bold");
@@ -186,7 +182,7 @@ export default function QuotePdfButton(props: QuotePdfButtonProps) {
     setStatus("generating");
     try {
       const doc = await buildQuotePdf(props);
-      const addressSlug = (props.clientAddress || "quote")
+      const addressSlug = (props.propertyAddress || "quote")
         .replace(/[^a-z0-9]+/gi, "-")
         .replace(/^-+|-+$/g, "")
         .slice(0, 40);
@@ -204,7 +200,7 @@ export default function QuotePdfButton(props: QuotePdfButtonProps) {
         type="button"
         onClick={handleExport}
         disabled={status === "generating"}
-        className="w-full rounded-md bg-lockhart-yellow px-4 py-3 text-sm font-semibold text-lockhart-asphalt shadow-sm transition hover:brightness-95 disabled:opacity-60"
+        className="w-full rounded-lg bg-lockhart-yellow px-4 py-4 text-base font-semibold text-lockhart-asphalt shadow-sm transition hover:brightness-95 disabled:opacity-60"
       >
         {status === "generating" ? "Generating PDF..." : "Export to PDF"}
       </button>

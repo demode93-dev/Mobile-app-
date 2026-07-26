@@ -32,12 +32,12 @@ export default function EstimateSummary({
         Cost & Profit Breakdown
       </h2>
       <p className="mb-2 text-xs text-neutral-400">
-        Updates live as you fill in the lump sums. Raw costs and profit
-        shown here are strictly internal — see the Client PDF View below
-        for exactly what the customer receives.
+        For the Estimator's eyes only — the Property Owner never sees this
+        section, only the Final Quoted Price below.
       </p>
       <div className="divide-y divide-neutral-100">
         {row("Material + Labor Cost", internal.cost)}
+        {row("Markup", internal.markupAmount)}
         {row("Profit", internal.profit)}
       </div>
       <div className="mt-2 border-t border-neutral-200 pt-2">
@@ -45,7 +45,7 @@ export default function EstimateSummary({
           internal.isOverridden ? "Suggested Price (before override)" : "Suggested Price",
           internal.suggestedFinalPrice
         )}
-        {row("Final Quote Price", internal.finalPrice, true)}
+        {row("Final Quoted Price", internal.finalPrice, true)}
       </div>
       {internal.isOverridden && (
         <p className="mt-2 text-xs font-medium text-lockhart-amber">

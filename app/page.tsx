@@ -17,7 +17,7 @@ const GOOGLE_MAPS_API_KEY =
   process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
 export default function DashboardPage() {
-  const [clientAddress, setClientAddress] = useState("");
+  const [propertyAddress, setPropertyAddress] = useState("");
   const [tracedLot, setTracedLot] = useState<TracedLot | null>(null);
   const [inputs, setInputs] = useState(DEFAULT_INPUTS);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -68,7 +68,7 @@ export default function DashboardPage() {
         <MapTracer
           apiKey={GOOGLE_MAPS_API_KEY}
           onLotTraced={handleLotTraced}
-          onAddressSelected={setClientAddress}
+          onAddressSelected={setPropertyAddress}
         />
       </div>
 
@@ -82,8 +82,8 @@ export default function DashboardPage() {
         </header>
 
         {/* ESTIMATOR VIEW - internal only. Everything in this section (raw
-            costs, labor rate, margin %) is for the estimator's eyes only and
-            must never be exposed in the Client PDF View below. */}
+            costs, labor rate, markup) is for the Estimator's eyes only and
+            must never be exposed in the Property Owner View below. */}
         <section aria-label="Estimator View (internal)" className="space-y-4">
           <span className="inline-block rounded-full bg-neutral-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-lockhart-yellow">
             Estimator View - internal only
@@ -91,14 +91,14 @@ export default function DashboardPage() {
 
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-neutral-600">
-              Project / Client Address
+              Project / Property Address
             </span>
             <input
               type="text"
-              value={clientAddress}
-              onChange={(e) => setClientAddress(e.target.value)}
+              value={propertyAddress}
+              onChange={(e) => setPropertyAddress(e.target.value)}
               placeholder="Search on the map, or type it here"
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lockhart-yellow"
+              className="w-full rounded-md border border-neutral-300 px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-lockhart-yellow"
             />
           </label>
 
@@ -114,17 +114,17 @@ export default function DashboardPage() {
           <EstimateSummary breakdown={breakdown} />
         </section>
 
-        {/* CLIENT PDF VIEW - only marked-up service prices and a total ever
-            render here or in the exported PDF. No labor rate, material
-            cost, or margin percentage. */}
-        <section aria-label="Client PDF View" className="space-y-3 pt-2">
+        {/* PROPERTY OWNER VIEW - only the services list and one lump-sum
+            total ever render here or in the exported PDF. No labor rate,
+            material cost, or markup. */}
+        <section aria-label="Property Owner View" className="space-y-3 pt-2">
           <span className="inline-block rounded-full bg-lockhart-yellow px-3 py-1 text-xs font-semibold uppercase tracking-wide text-lockhart-asphalt">
-            Client PDF View - what your client sees
+            Property Owner View - what the client sees
           </span>
-          <ClientPreview breakdown={breakdown} clientAddress={clientAddress} />
+          <ClientPreview breakdown={breakdown} propertyAddress={propertyAddress} />
           <QuotePdfButton
             apiKey={GOOGLE_MAPS_API_KEY}
-            clientAddress={clientAddress}
+            propertyAddress={propertyAddress}
             tracedLot={tracedLot}
             breakdown={breakdown}
           />

@@ -91,7 +91,7 @@ export default function EstimateForm({
       />
 
       <BigNumberField
-        label="Lump Sum Material Cost"
+        label="Total Material Cost"
         value={inputs.materialLumpSum}
         onChange={(v) => set("materialLumpSum", v)}
         prefix="$"
@@ -99,17 +99,72 @@ export default function EstimateForm({
       />
 
       <BigNumberField
-        label="Lump Sum Labor Cost"
+        label="Total Labor Cost"
         value={inputs.laborLumpSum}
         onChange={(v) => set("laborLumpSum", v)}
         prefix="$"
         helper="Total labor for the whole job - no hourly math."
       />
 
+      <div>
+        <span className="mb-1 block text-sm font-medium text-neutral-700">
+          Markup / Profit
+        </span>
+        <div className="flex gap-2">
+          <div className="grid w-32 shrink-0 grid-cols-1 gap-1">
+            <button
+              type="button"
+              onClick={() =>
+                onSettingsChange({ ...settings, markupMode: "percent" })
+              }
+              className={`rounded-lg border px-2 py-2 text-sm font-medium ${
+                settings.markupMode === "percent"
+                  ? "border-lockhart-yellow bg-lockhart-yellow text-lockhart-asphalt"
+                  : "border-neutral-300 bg-white text-neutral-600"
+              }`}
+            >
+              %
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                onSettingsChange({ ...settings, markupMode: "flat" })
+              }
+              className={`rounded-lg border px-2 py-2 text-sm font-medium ${
+                settings.markupMode === "flat"
+                  ? "border-lockhart-yellow bg-lockhart-yellow text-lockhart-asphalt"
+                  : "border-neutral-300 bg-white text-neutral-600"
+              }`}
+            >
+              $
+            </button>
+          </div>
+          <input
+            type="number"
+            inputMode="decimal"
+            step={settings.markupMode === "percent" ? 1 : 10}
+            min={0}
+            value={settings.markupValue}
+            onChange={(e) =>
+              onSettingsChange({
+                ...settings,
+                markupValue: parseFloat(e.target.value) || 0,
+              })
+            }
+            className="w-full rounded-lg border border-neutral-300 px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-lockhart-yellow"
+          />
+        </div>
+        <p className="mt-1 text-xs text-neutral-400">
+          {settings.markupMode === "percent"
+            ? "Added on top of materials + labor as a percentage."
+            : "Added on top of materials + labor as a flat dollar amount."}
+        </p>
+      </div>
+
       <div className="rounded-lg border-2 border-lockhart-yellow bg-amber-50 p-4">
         <label className="block">
           <span className="mb-1 block text-sm font-semibold text-neutral-800">
-            Final Quote Price
+            Final Quoted Price
           </span>
           <div className="flex items-center gap-2">
             <span className="text-lg text-neutral-500">$</span>
@@ -143,47 +198,17 @@ export default function EstimateForm({
             </button>
           )}
         </div>
+        <p className="mt-1 text-xs text-neutral-400">
+          Type over this to round to a clean number, like $1,500 - it's what
+          goes on the PDF.
+        </p>
       </div>
 
       <details className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
         <summary className="cursor-pointer text-sm font-semibold text-neutral-600">
-          Settings (default rates & markup)
+          Settings (default sealcoat rate)
         </summary>
-        <div className="mt-4 space-y-4">
-          <div>
-            <span className="mb-1 block text-xs font-medium text-neutral-600">
-              Pricing Method for Suggested Price
-            </span>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  onSettingsChange({ ...settings, pricingMode: "markupOnCosts" })
-                }
-                className={`rounded-lg border px-3 py-3 text-sm font-medium ${
-                  settings.pricingMode === "markupOnCosts"
-                    ? "border-lockhart-yellow bg-lockhart-yellow text-lockhart-asphalt"
-                    : "border-neutral-300 bg-white text-neutral-600"
-                }`}
-              >
-                Markup on Costs
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  onSettingsChange({ ...settings, pricingMode: "flatRatePerSqFt" })
-                }
-                className={`rounded-lg border px-3 py-3 text-sm font-medium ${
-                  settings.pricingMode === "flatRatePerSqFt"
-                    ? "border-lockhart-yellow bg-lockhart-yellow text-lockhart-asphalt"
-                    : "border-neutral-300 bg-white text-neutral-600"
-                }`}
-              >
-                Flat Rate by Size
-              </button>
-            </div>
-          </div>
-
+        <div className="mt-4">
           <BigNumberField
             label="Default Sealcoat Rate"
             value={settings.sealcoatRatePerSqFt}
@@ -193,24 +218,7 @@ export default function EstimateForm({
             }
             prefix="$"
             suffix="per sq ft"
-            helper="Used to auto-fill the material cost baseline when you trace a lot, and for flat-rate pricing."
-          />
-          <BigNumberField
-            label="Default Striping Rate"
-            value={settings.stripingRatePerSpace}
-            onChange={(v) =>
-              onSettingsChange({ ...settings, stripingRatePerSpace: v })
-            }
-            prefix="$"
-            suffix="per space"
-            helper="Used for flat-rate pricing and to split the PDF's service line items."
-          />
-          <BigNumberField
-            label="Markup"
-            value={settings.markupPercent}
-            onChange={(v) => onSettingsChange({ ...settings, markupPercent: v })}
-            suffix="%"
-            helper="Applied on top of your material + labor lump sums."
+            helper="Only used to auto-fill a starting Total Material Cost when you trace a lot - edit that field freely afterward."
           />
         </div>
       </details>
