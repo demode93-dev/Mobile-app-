@@ -29,12 +29,12 @@ export default function EstimateSummary({
   return (
     <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
       <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-neutral-500">
-        Estimate Summary (internal)
+        Cost & Margin Breakdown
       </h2>
       <p className="mb-2 text-xs text-neutral-400">
-        Updates live as you trace the lot or adjust variables. This full
-        cost breakdown is for your reference only — the PDF export shows
-        customer-facing prices with labor and margin folded in.
+        Updates live as you trace the lot or adjust variables. Raw costs
+        and margin shown here are strictly internal — see the Client PDF
+        View below for exactly what the customer receives.
       </p>
       <div className="divide-y divide-neutral-100">
         {row("Prep / Cleaning", internal.prep)}

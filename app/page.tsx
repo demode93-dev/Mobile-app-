@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import MapTracer, { type TracedLot } from "@/components/MapTracer";
 import EstimateForm from "@/components/EstimateForm";
 import EstimateSummary from "@/components/EstimateSummary";
+import ClientPreview from "@/components/ClientPreview";
 import QuotePdfButton from "@/components/QuotePdfButton";
 import { computeEstimate, DEFAULT_INPUTS } from "@/lib/estimation";
 
@@ -64,35 +65,53 @@ export default function DashboardPage() {
           <p className="text-sm text-neutral-500">Field Quote Generator</p>
         </header>
 
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium text-neutral-600">
-            Project / Client Address
+        {/* ESTIMATOR VIEW - internal only. Everything in this section (raw
+            costs, labor rate, margin %) is for the estimator's eyes only and
+            must never be exposed in the Client PDF View below. */}
+        <section aria-label="Estimator View (internal)" className="space-y-4">
+          <span className="inline-block rounded-full bg-neutral-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-lockhart-yellow">
+            Estimator View - internal only
           </span>
-          <input
-            type="text"
-            value={clientAddress}
-            onChange={(e) => setClientAddress(e.target.value)}
-            placeholder="Search on the map, or type it here"
-            className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lockhart-yellow"
+
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-neutral-600">
+              Project / Client Address
+            </span>
+            <input
+              type="text"
+              value={clientAddress}
+              onChange={(e) => setClientAddress(e.target.value)}
+              placeholder="Search on the map, or type it here"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lockhart-yellow"
+            />
+          </label>
+
+          <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+            <EstimateForm
+              inputs={inputs}
+              onChange={setInputs}
+              autoSqFt={tracedLot?.areaSqFt ?? null}
+            />
+          </div>
+
+          <EstimateSummary breakdown={breakdown} />
+        </section>
+
+        {/* CLIENT PDF VIEW - only marked-up service prices and a total ever
+            render here or in the exported PDF. No labor rate, material
+            cost, or margin percentage. */}
+        <section aria-label="Client PDF View" className="space-y-3 pt-2">
+          <span className="inline-block rounded-full bg-lockhart-yellow px-3 py-1 text-xs font-semibold uppercase tracking-wide text-lockhart-asphalt">
+            Client PDF View - what your client sees
+          </span>
+          <ClientPreview breakdown={breakdown} clientAddress={clientAddress} />
+          <QuotePdfButton
+            apiKey={GOOGLE_MAPS_API_KEY}
+            clientAddress={clientAddress}
+            tracedLot={tracedLot}
+            breakdown={breakdown}
           />
-        </label>
-
-        <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-          <EstimateForm
-            inputs={inputs}
-            onChange={setInputs}
-            autoSqFt={tracedLot?.areaSqFt ?? null}
-          />
-        </div>
-
-        <EstimateSummary breakdown={breakdown} />
-
-        <QuotePdfButton
-          apiKey={GOOGLE_MAPS_API_KEY}
-          clientAddress={clientAddress}
-          tracedLot={tracedLot}
-          breakdown={breakdown}
-        />
+        </section>
       </div>
     </main>
   );
