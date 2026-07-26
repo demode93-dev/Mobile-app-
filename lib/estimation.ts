@@ -1,30 +1,48 @@
-// Pure calculation logic for the estimation engine. Kept free of React so it
-// can be unit tested and reused by both the live dashboard and the PDF export
-// without duplicating the math in two places.
+// Pure calculation logic for the "ultra-simple" estimator: the estimator
+// types two lump-sum totals (materials, labor) instead of doing per-gallon
+// or per-hour math, and the app suggests a final quote price they can type
+// over. Kept free of React so it can be unit tested and reused by the live
+// dashboard, the client preview, and the PDF export without duplicating the
+// math in three places.
 
-export type StripingUnit = "spaces" | "linearFeet";
-export type SealantPricingMode = "perSqFt" | "perGallon";
-export type LaborMode = "perHour" | "perSqFt";
+export type PricingMode = "markupOnCosts" | "flatRatePerSqFt";
+
+export interface EstimateSettings {
+  /** Default $/sq ft used to auto-fill a baseline material cost when a lot
+   * is traced, and as the sealcoating half of "flat rate" pricing. */
+  sealcoatRatePerSqFt: number;
+  /** Used as the striping half of "flat rate" pricing, and to weight how
+   * much of the final price the PDF attributes to striping vs sealcoating. */
+  stripingRatePerSpace: number;
+  /** Markup applied to the material + labor lump sums in "markupOnCosts" mode. */
+  markupPercent: number;
+  pricingMode: PricingMode;
+}
+
+export const DEFAULT_SETTINGS: EstimateSettings = {
+  sealcoatRatePerSqFt: 0.15,
+  stripingRatePerSpace: 8,
+  markupPercent: 30,
+  pricingMode: "markupOnCosts",
+};
 
 export interface EstimateInputs {
   totalSqFt: number;
-  prepCostPerSqFt: number;
-
-  sealantPricingMode: SealantPricingMode;
-  sealantCostPerSqFt: number; // used when sealantPricingMode === "perSqFt"
-  sealantCostPerGallon: number; // used when sealantPricingMode === "perGallon"
-  sealantCoverageSqFtPerGallon: number; // used when sealantPricingMode === "perGallon"
-
-  stripingUnit: StripingUnit;
-  stripingQuantity: number; // number of spaces, or linear feet
-  paintCostPerUnit: number; // $ per space or per linear foot
-
-  laborMode: LaborMode;
-  laborRate: number; // $/hr or $/sqft depending on laborMode
-  laborHours: number; // used when laborMode === "perHour"
-
-  marginPercent: number;
+  numberOfSpaces: number;
+  materialLumpSum: number;
+  laborLumpSum: number;
+  /** Set once the estimator types over the suggested final price; null means
+   * "still using the auto-calculated suggestion." */
+  finalPriceOverride: number | null;
 }
+
+export const DEFAULT_INPUTS: EstimateInputs = {
+  totalSqFt: 0,
+  numberOfSpaces: 0,
+  materialLumpSum: 0,
+  laborLumpSum: 0,
+  finalPriceOverride: null,
+};
 
 export interface EstimateLineItem {
   label: string;
@@ -32,113 +50,90 @@ export interface EstimateLineItem {
 }
 
 export interface EstimateBreakdown {
-  /** Internal, cost-basis line items - the estimator's real numbers. */
+  /** Internal, cost-basis numbers - the estimator's real math. */
   internal: {
-    prep: number;
-    sealCoat: number;
-    striping: number;
-    labor: number;
-    subtotal: number;
-    marginAmount: number;
-    total: number;
+    cost: number; // materialLumpSum + laborLumpSum
+    suggestedFinalPrice: number;
+    finalPrice: number; // override if set, else suggestedFinalPrice
+    isOverridden: boolean;
+    profit: number; // finalPrice - cost
   };
   /**
-   * Customer-facing line items with margin baked proportionally into each
-   * service price. Labor is folded into "Seal Coating" rather than shown as
-   * its own line, so the client sees finished service prices, not a labor
-   * rate or the markup percentage.
+   * Customer-facing line items that always sum to exactly `finalPrice`
+   * (including when the estimator has typed over the suggestion) - no
+   * labor rate, material cost, or margin ever appears here.
    */
   customer: EstimateLineItem[];
   customerTotal: number;
 }
 
-export const DEFAULT_INPUTS: EstimateInputs = {
-  totalSqFt: 0,
-  prepCostPerSqFt: 0.04,
-
-  sealantPricingMode: "perSqFt",
-  sealantCostPerSqFt: 0.18,
-  sealantCostPerGallon: 28,
-  sealantCoverageSqFtPerGallon: 80,
-
-  stripingUnit: "spaces",
-  stripingQuantity: 0,
-  paintCostPerUnit: 6,
-
-  laborMode: "perSqFt",
-  laborRate: 0.05,
-  laborHours: 0,
-
-  marginPercent: 25,
-};
-
 function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-export function computeSealCoatCost(inputs: EstimateInputs): number {
-  const { totalSqFt, sealantPricingMode } = inputs;
-  if (sealantPricingMode === "perSqFt") {
-    return totalSqFt * inputs.sealantCostPerSqFt;
+/** Suggested baseline material lump sum to auto-fill right after a trace. */
+export function computeBaselineMaterialCost(
+  totalSqFt: number,
+  settings: EstimateSettings
+): number {
+  return Math.round(totalSqFt * settings.sealcoatRatePerSqFt);
+}
+
+export function computeSuggestedFinalPrice(
+  inputs: EstimateInputs,
+  settings: EstimateSettings
+): number {
+  if (settings.pricingMode === "flatRatePerSqFt") {
+    return (
+      inputs.totalSqFt * settings.sealcoatRatePerSqFt +
+      inputs.numberOfSpaces * settings.stripingRatePerSpace
+    );
   }
-  const coverage = inputs.sealantCoverageSqFtPerGallon || 1;
-  const gallonsNeeded = totalSqFt / coverage;
-  return gallonsNeeded * inputs.sealantCostPerGallon;
+  const cost = inputs.materialLumpSum + inputs.laborLumpSum;
+  return cost * (1 + settings.markupPercent / 100);
 }
 
-export function computeLaborCost(inputs: EstimateInputs): number {
-  return inputs.laborMode === "perSqFt"
-    ? inputs.totalSqFt * inputs.laborRate
-    : inputs.laborHours * inputs.laborRate;
-}
+export function computeEstimate(
+  inputs: EstimateInputs,
+  settings: EstimateSettings
+): EstimateBreakdown {
+  const cost = inputs.materialLumpSum + inputs.laborLumpSum;
+  const suggestedFinalPrice = round2(computeSuggestedFinalPrice(inputs, settings));
+  const finalPrice = round2(inputs.finalPriceOverride ?? suggestedFinalPrice);
 
-export function computeEstimate(inputs: EstimateInputs): EstimateBreakdown {
-  const prep = inputs.totalSqFt * inputs.prepCostPerSqFt;
-  const sealCoat = computeSealCoatCost(inputs);
-  const striping = inputs.stripingQuantity * inputs.paintCostPerUnit;
-  const labor = computeLaborCost(inputs);
-
-  const subtotal = prep + sealCoat + striping + labor;
-  const marginAmount = subtotal * (inputs.marginPercent / 100);
-  const total = subtotal + marginAmount;
-
-  // Apply the same margin multiplier to every service line so the customer
-  // sees only finished prices - none of the underlying labor rate or the
-  // markup percentage is exposed.
-  const marginMultiplier = 1 + inputs.marginPercent / 100;
-  const customer: EstimateLineItem[] = [
-    {
-      label: "Surface Preparation & Cleaning",
-      amount: round2(prep * marginMultiplier),
-    },
-    {
-      label: "Seal Coating Application",
-      amount: round2((sealCoat + labor) * marginMultiplier),
-    },
-    {
-      label:
-        inputs.stripingUnit === "spaces"
-          ? "Line Striping (Parking Spaces)"
-          : "Line Striping",
-      amount: round2(striping * marginMultiplier),
-    },
-  ];
-  const customerTotal = round2(
-    customer.reduce((sum, item) => sum + item.amount, 0)
+  // Split the (possibly overridden) total into customer-friendly service
+  // lines by weighting sealcoating vs striping using the settings rates -
+  // those rates only decide the *ratio*, never the actual dollar amounts,
+  // so the line items always add up to exactly what the estimator quoted.
+  const sealcoatWeight = Math.max(inputs.totalSqFt * settings.sealcoatRatePerSqFt, 0);
+  const stripingWeight = Math.max(
+    inputs.numberOfSpaces * settings.stripingRatePerSpace,
+    0
   );
+  const totalWeight = sealcoatWeight + stripingWeight;
+
+  const customer: EstimateLineItem[] = [];
+  if (inputs.numberOfSpaces <= 0 || totalWeight === 0) {
+    customer.push({ label: "1. Sealcoating Service", amount: finalPrice });
+  } else {
+    const sealcoatAmount = round2((finalPrice * sealcoatWeight) / totalWeight);
+    customer.push({ label: "1. Sealcoating Service", amount: sealcoatAmount });
+    customer.push({
+      label: "2. Striping Service",
+      amount: round2(finalPrice - sealcoatAmount), // exact remainder, avoids rounding drift
+    });
+  }
 
   return {
     internal: {
-      prep: round2(prep),
-      sealCoat: round2(sealCoat),
-      striping: round2(striping),
-      labor: round2(labor),
-      subtotal: round2(subtotal),
-      marginAmount: round2(marginAmount),
-      total: round2(total),
+      cost: round2(cost),
+      suggestedFinalPrice,
+      finalPrice,
+      isOverridden: inputs.finalPriceOverride !== null,
+      profit: round2(finalPrice - cost),
     },
     customer,
-    customerTotal,
+    customerTotal: round2(customer.reduce((sum, item) => sum + item.amount, 0)),
   };
 }
 

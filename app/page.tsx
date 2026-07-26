@@ -6,7 +6,12 @@ import EstimateForm from "@/components/EstimateForm";
 import EstimateSummary from "@/components/EstimateSummary";
 import ClientPreview from "@/components/ClientPreview";
 import QuotePdfButton from "@/components/QuotePdfButton";
-import { computeEstimate, DEFAULT_INPUTS } from "@/lib/estimation";
+import {
+  computeBaselineMaterialCost,
+  computeEstimate,
+  DEFAULT_INPUTS,
+  DEFAULT_SETTINGS,
+} from "@/lib/estimation";
 
 const GOOGLE_MAPS_API_KEY =
   process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
@@ -15,15 +20,26 @@ export default function DashboardPage() {
   const [clientAddress, setClientAddress] = useState("");
   const [tracedLot, setTracedLot] = useState<TracedLot | null>(null);
   const [inputs, setInputs] = useState(DEFAULT_INPUTS);
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
 
   const handleLotTraced = (lot: TracedLot | null) => {
     setTracedLot(lot);
     if (lot) {
-      setInputs((prev) => ({ ...prev, totalSqFt: Math.round(lot.areaSqFt) }));
+      const sqFt = Math.round(lot.areaSqFt);
+      setInputs((prev) => ({
+        ...prev,
+        totalSqFt: sqFt,
+        // Auto-fill the material lump sum baseline from the traced size -
+        // the estimator can still type over it afterward.
+        materialLumpSum: computeBaselineMaterialCost(sqFt, settings),
+      }));
     }
   };
 
-  const breakdown = useMemo(() => computeEstimate(inputs), [inputs]);
+  const breakdown = useMemo(
+    () => computeEstimate(inputs, settings),
+    [inputs, settings]
+  );
 
   if (!GOOGLE_MAPS_API_KEY) {
     return (
@@ -90,7 +106,8 @@ export default function DashboardPage() {
             <EstimateForm
               inputs={inputs}
               onChange={setInputs}
-              autoSqFt={tracedLot?.areaSqFt ?? null}
+              settings={settings}
+              onSettingsChange={setSettings}
             />
           </div>
 

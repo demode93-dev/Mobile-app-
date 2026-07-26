@@ -6,11 +6,14 @@ branded, client-safe PDF quote.
 
 The app has two views baked into the dashboard:
 
-- **Estimator View** (top section) — raw square footage, material costs,
-  labor rate, and profit margin. Internal only.
+- **Estimator View** (top section) — square footage (auto-filled from the
+  map trace), space count, lump-sum material/labor totals, and an
+  auto-suggested Final Quote Price the estimator can type over. Internal
+  only.
 - **Client PDF View** (bottom section) — a live preview of exactly what the
-  "Export to PDF" button produces: marked-up service prices and a total,
-  never the labor rate, material cost, or margin percentage.
+  "Export to PDF" button produces: numbered, customer-friendly service
+  lines that always add up to the Final Quote Price above, never the lump
+  sums or the markup percentage.
 
 ## 1. Local setup
 
