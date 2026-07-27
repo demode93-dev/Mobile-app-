@@ -4,13 +4,20 @@ import React, { useCallback, useRef, useState } from 'react';
 import {
   GoogleMap,
   useJsApiLoader,
-  DrawingManager,
+  Marker,
+  Polyline,
   Polygon,
   StandaloneSearchBox,
 } from '@react-google-maps/api';
 import type { LatLng } from '@/lib/staticMap';
 
-const LIBRARIES: ('drawing' | 'geometry' | 'places')[] = ['drawing', 'geometry', 'places'];
+// Deliberately no 'drawing' library here - Google removed the
+// google.maps.drawing.DrawingManager class from the Maps JavaScript API as
+// of v3.65 (https://developers.google.com/maps/deprecations), so any app
+// still requesting it crashes at runtime. Polygon tracing below is
+// implemented by hand: tap the map to add vertices, tap "Finish Shape" to
+// close it - Google's own recommended replacement approach.
+const LIBRARIES: ('geometry' | 'places')[] = ['geometry', 'places'];
 
 const MAP_CONTAINER_STYLE = { width: '100%', height: '100%' };
 
@@ -25,6 +32,16 @@ const POLYGON_OPTIONS = {
   editable: true,
   draggable: true,
   zIndex: 1,
+};
+
+const VERTEX_ICON = {
+  path: 0, // google.maps.SymbolPath.CIRCLE - a stable enum value (0), used
+  // directly so this object doesn't need window.google to exist yet.
+  scale: 5,
+  fillColor: '#2563eb',
+  fillOpacity: 1,
+  strokeColor: '#ffffff',
+  strokeWeight: 1.5,
 };
 
 interface MapComponentProps {
@@ -42,6 +59,7 @@ export default function MapComponent({ onAreaCalculated, onPolygonChange }: MapC
   const searchBoxRef = useRef<google.maps.places.SearchBox | null>(null);
   const [polygonPath, setPolygonPath] = useState<google.maps.LatLngLiteral[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [drawingPoints, setDrawingPoints] = useState<google.maps.LatLngLiteral[]>([]);
 
   const calculateArea = useCallback(
     (path: google.maps.LatLngLiteral[]) => {
@@ -55,21 +73,12 @@ export default function MapComponent({ onAreaCalculated, onPolygonChange }: MapC
     [onAreaCalculated, onPolygonChange]
   );
 
-  const handleOverlayComplete = useCallback(
-    (e: google.maps.drawing.OverlayCompleteEvent) => {
-      if (e.type === window.google.maps.drawing.OverlayType.POLYGON) {
-        const overlay = e.overlay as google.maps.Polygon;
-        const path = overlay.getPath().getArray().map((latLng) => ({
-          lat: latLng.lat(),
-          lng: latLng.lng(),
-        }));
-        overlay.setMap(null);
-        setPolygonPath(path);
-        calculateArea(path);
-        setIsDrawing(false);
-      }
+  const onMapClick = useCallback(
+    (e: google.maps.MapMouseEvent) => {
+      if (!isDrawing || !e.latLng) return;
+      setDrawingPoints((prev) => [...prev, { lat: e.latLng!.lat(), lng: e.latLng!.lng() }]);
     },
-    [calculateArea]
+    [isDrawing]
   );
 
   const onPolygonEdited = useCallback(
@@ -97,7 +106,27 @@ export default function MapComponent({ onAreaCalculated, onPolygonChange }: MapC
 
   const startDrawing = useCallback(() => {
     setPolygonPath([]);
+    setDrawingPoints([]);
     setIsDrawing(true);
+    onAreaCalculated(0);
+    onPolygonChange(null);
+  }, [onAreaCalculated, onPolygonChange]);
+
+  const cancelDrawing = useCallback(() => {
+    setIsDrawing(false);
+    setDrawingPoints([]);
+  }, []);
+
+  const finishDrawing = useCallback(() => {
+    if (drawingPoints.length < 3) return;
+    setPolygonPath(drawingPoints);
+    calculateArea(drawingPoints);
+    setIsDrawing(false);
+    setDrawingPoints([]);
+  }, [drawingPoints, calculateArea]);
+
+  const undoLastPoint = useCallback(() => {
+    setDrawingPoints((prev) => prev.slice(0, -1));
   }, []);
 
   const clearPolygon = useCallback(() => {
@@ -122,6 +151,7 @@ export default function MapComponent({ onAreaCalculated, onPolygonChange }: MapC
         zoom={19}
         mapTypeId="satellite"
         onLoad={(map) => { mapRef.current = map; }}
+        onClick={onMapClick}
         options={{
           mapTypeControl: false,
           streetViewControl: false,
@@ -142,16 +172,17 @@ export default function MapComponent({ onAreaCalculated, onPolygonChange }: MapC
           </StandaloneSearchBox>
         </div>
 
-        {polygonPath.length === 0 && window.google?.maps?.drawing && (
-          <DrawingManager
-            options={{
-              drawingControl: false,
-              polygonOptions: POLYGON_OPTIONS,
-            }}
-            onOverlayComplete={handleOverlayComplete}
-            drawingMode={isDrawing ? window.google.maps.drawing.OverlayType.POLYGON : null}
+        {isDrawing && drawingPoints.length > 0 && (
+          <Polyline
+            path={drawingPoints}
+            options={{ strokeColor: '#2563eb', strokeWeight: 3 }}
           />
         )}
+
+        {isDrawing &&
+          drawingPoints.map((point, index) => (
+            <Marker key={index} position={point} icon={VERTEX_ICON} />
+          ))}
 
         {polygonPath.length > 0 && (
           <Polygon
@@ -170,9 +201,27 @@ export default function MapComponent({ onAreaCalculated, onPolygonChange }: MapC
       </GoogleMap>
 
       <div className="absolute bottom-4 left-4 right-4 z-10 flex gap-3">
-        {polygonPath.length === 0 ? (
+        {isDrawing ? (
+          <>
+            <button onClick={cancelDrawing} className="flex-1 btn-secondary shadow-lg">
+              Cancel
+            </button>
+            {drawingPoints.length > 0 && (
+              <button onClick={undoLastPoint} className="flex-1 btn-secondary shadow-lg">
+                Undo Point
+              </button>
+            )}
+            <button
+              onClick={finishDrawing}
+              disabled={drawingPoints.length < 3}
+              className="flex-1 btn-primary shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Finish Shape
+            </button>
+          </>
+        ) : polygonPath.length === 0 ? (
           <button onClick={startDrawing} className="flex-1 btn-primary shadow-lg">
-            {isDrawing ? 'Click map to draw polygon' : '✏️ Draw Parking Lot'}
+            ✏️ Draw Parking Lot
           </button>
         ) : (
           <>
@@ -186,9 +235,11 @@ export default function MapComponent({ onAreaCalculated, onPolygonChange }: MapC
         )}
       </div>
 
-      {isDrawing && polygonPath.length === 0 && (
+      {isDrawing && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 bg-blue-700 text-white px-4 py-2 rounded-full text-sm font-medium shadow-lg animate-bounce">
-          Click multiple points to trace the lot, then click the first point to close
+          {drawingPoints.length < 3
+            ? 'Tap the map to place points around the lot'
+            : 'Tap Finish Shape when done'}
         </div>
       )}
     </div>
