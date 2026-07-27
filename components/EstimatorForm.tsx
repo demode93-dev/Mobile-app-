@@ -5,7 +5,6 @@ import { Settings, FileText, DollarSign, MapPin, Hash, Percent } from 'lucide-re
 import SettingsModal from './SettingsModal';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { buildStaticMapUrl, fetchImageAsDataUrl, type LatLng } from '@/lib/staticMap';
 
 export interface AppSettings {
   sealcoatRatePerSqFt: number;
@@ -24,9 +23,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 interface EstimatorFormProps {
-  apiKey: string;
   squareFootage: number;
-  polygonPath: LatLng[] | null;
+  onSquareFootageChange: (v: number) => void;
   settings: AppSettings;
   onSettingsChange: (s: AppSettings) => void;
   finalQuote: number;
@@ -40,9 +38,8 @@ interface EstimatorFormProps {
 }
 
 export default function EstimatorForm({
-  apiKey,
   squareFootage,
-  polygonPath,
+  onSquareFootageChange,
   settings,
   onSettingsChange,
   finalQuote,
@@ -58,7 +55,6 @@ export default function EstimatorForm({
   const [laborCost, setLaborCost] = useState<number | ''>('');
   const [showSettings, setShowSettings] = useState(false);
   const [notes, setNotes] = useState('');
-  const [mapImageData, setMapImageData] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   // Generated only client-side, right before export (see doExportPDF) -
   // never during render, so the prerendered/static HTML and the client's
@@ -97,12 +93,14 @@ export default function EstimatorForm({
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
 
   // The Sealcoating line always carries the full quote unless there's also a
-  // Striping line, in which case it splits 70/30 - this keeps the two line
-  // items summing to exactly `finalQuote` in both cases (a sealcoating-only
-  // job previously showed only 70% of the price here, silently dropping the
-  // rest off the client-facing total).
-  const sealcoatAmount = numSpaces > 0 ? finalQuote * 0.7 : finalQuote;
-  const stripingAmount = finalQuote - sealcoatAmount;
+  // Striping line, in which case it splits 70/30. Rounding sealcoatAmount
+  // first and taking stripingAmount as the exact remainder (rather than
+  // rounding both independently) keeps the two displayed line items
+  // summing to exactly the displayed total - independent rounding can
+  // otherwise land both lines on the same side and be $1 off.
+  const roundedFinalQuote = Math.round(finalQuote);
+  const sealcoatAmount = numSpaces > 0 ? Math.round(roundedFinalQuote * 0.7) : roundedFinalQuote;
+  const stripingAmount = roundedFinalQuote - sealcoatAmount;
 
   const doExportPDF = async () => {
     setIsExporting(true);
@@ -112,23 +110,8 @@ export default function EstimatorForm({
         new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
       );
 
-      // Fetch the Static Maps snapshot (if a lot has been traced) and wait
-      // for React to re-render the hidden PDF template with it before we
-      // screenshot that template - html2canvas only sees what's already
-      // painted in the DOM.
-      let resolvedMapImage: string | null = null;
-      if (polygonPath && polygonPath.length >= 3 && apiKey) {
-        try {
-          const url = buildStaticMapUrl(polygonPath, apiKey);
-          resolvedMapImage = await fetchImageAsDataUrl(url);
-          setMapImageData(resolvedMapImage);
-        } catch (err) {
-          console.warn('Could not fetch map snapshot for PDF:', err);
-        }
-      }
-
       // Two animation frames reliably land after React's commit + paint for
-      // the state update above.
+      // the state updates above.
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
       if (!pdfRef.current) return;
@@ -174,23 +157,14 @@ export default function EstimatorForm({
         </button>
       </div>
 
-      <div className="card bg-blue-50 border-blue-200">
-        <div className="flex items-center gap-3 mb-1">
-          <MapPin className="w-5 h-5 text-blue-600" />
-          <span className="text-sm font-semibold text-blue-700 uppercase tracking-wide">Measured Area</span>
-        </div>
-        <div className="text-3xl font-bold text-blue-900">
-          {squareFootage > 0 ? `${squareFootage.toLocaleString()} sq ft` : '—'}
-        </div>
-        <div className="text-sm text-blue-600 mt-1">Auto-calculated from map polygon</div>
-      </div>
-
       <div className="card space-y-4">
         <h3 className="font-semibold text-slate-700 flex items-center gap-2">
           <FileText className="w-4 h-4" /> Job Details
         </h3>
         <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">Project Address</label>
+          <label className="block text-sm font-medium text-slate-600 mb-1 flex items-center gap-1">
+            <MapPin className="w-4 h-4" /> Project Address
+          </label>
           <input
             type="text"
             value={projectAddress}
@@ -206,6 +180,17 @@ export default function EstimatorForm({
             value={clientName}
             onChange={(e) => onClientNameChange(e.target.value)}
             placeholder="John Smith"
+            className="input-field"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-600 mb-1">Total Square Footage</label>
+          <input
+            type="number"
+            min="0"
+            value={squareFootage || ''}
+            onChange={(e) => onSquareFootageChange(Number(e.target.value) || 0)}
+            placeholder="e.g. 12000"
             className="input-field"
           />
         </div>
@@ -350,18 +335,6 @@ export default function EstimatorForm({
             </div>
           </div>
 
-          {mapImageData && (
-            <div style={{ padding: '20px 40px' }}>
-              <p style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Quoted Area
-              </p>
-              <img src={mapImageData} alt="Quoted Area" style={{ width: '100%', borderRadius: '8px', border: '2px solid #e2e8f0' }} />
-              <p style={{ fontSize: '13px', color: '#64748b', marginTop: '6px' }}>
-                Approximate area: {squareFootage.toLocaleString()} sq ft
-              </p>
-            </div>
-          )}
-
           <div style={{ padding: '20px 40px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -418,7 +391,7 @@ export default function EstimatorForm({
               1. Payment terms: Net 15 upon completion.<br />
               2. Weather delays: Work may be rescheduled due to rain or temperatures below 50°F.<br />
               3. Site access: Client must ensure clear access to work area.<br />
-              4. This quote is an estimate based on satellite imagery; final pricing may vary after on-site inspection.
+              4. This quote is an estimate based on the square footage provided; final pricing may vary after on-site inspection.
             </p>
             <div style={{ marginTop: '40px', display: 'flex', gap: '40px' }}>
               <div style={{ flex: 1 }}>
