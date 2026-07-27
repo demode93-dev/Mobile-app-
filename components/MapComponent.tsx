@@ -142,7 +142,7 @@ export default function MapComponent({ onAreaCalculated, onPolygonChange }: MapC
           </StandaloneSearchBox>
         </div>
 
-        {polygonPath.length === 0 && (
+        {polygonPath.length === 0 && window.google?.maps?.drawing && (
           <DrawingManager
             options={{
               drawingControl: false,
