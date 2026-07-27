@@ -65,6 +65,13 @@ export default function EstimatorForm({
   // hydration pass always agree (Date.now() in render causes a guaranteed
   // server/client mismatch since the two evaluations happen at different times).
   const [quoteNumber, setQuoteNumber] = useState<string | null>(null);
+  // Same reasoning as quoteNumber above: this is a static export built once
+  // and served to everyone, so a build-time Date() baked into the
+  // prerendered HTML will disagree with the client's hydration-time Date()
+  // whenever the build server's timezone and the visitor's local timezone
+  // land on different calendar days - a guaranteed hydration mismatch, not
+  // just a flaky one.
+  const [todayLabel, setTodayLabel] = useState<string | null>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
 
   const autoSealcoatCost = squareFootage * settings.sealcoatRatePerSqFt;
@@ -101,6 +108,9 @@ export default function EstimatorForm({
     setIsExporting(true);
     try {
       setQuoteNumber(`LSS-${Date.now().toString().slice(-6)}`);
+      setTodayLabel(
+        new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      );
 
       // Fetch the Static Maps snapshot (if a lot has been traced) and wait
       // for React to re-render the hidden PDF template with it before we
@@ -150,8 +160,6 @@ export default function EstimatorForm({
       setIsExporting(false);
     }
   };
-
-  const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
   return (
     <div className="space-y-4">
@@ -329,7 +337,7 @@ export default function EstimatorForm({
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <div>
                 <h2 style={{ fontSize: '24px', margin: '0 0 8px', color: '#1e40af' }}>QUOTE</h2>
-                <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>Date: {today}</p>
+                <p style={{ margin: 0, fontSize: '14px', color: '#64748b' }}>Date: {todayLabel ?? '—'}</p>
                 <p style={{ margin: '4px 0 0', fontSize: '14px', color: '#64748b' }}>
                   Quote #: {quoteNumber ?? '—'}
                 </p>
