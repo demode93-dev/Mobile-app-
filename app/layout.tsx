@@ -1,31 +1,18 @@
-import type { Metadata, Viewport } from "next";
-import "./globals.css";
-import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
+import type { Metadata, Viewport } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "Lockhart Surface Solutions | Field Quote Tool",
-  description:
-    "Trace a parking lot on satellite view and generate an accurate seal coating & striping quote on the spot.",
-  manifest: "/manifest.webmanifest",
-  icons: {
-    icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
-    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
-  },
-  // iOS ignores the web manifest's `display: standalone` unless these
-  // legacy meta tags are also present - Next.js emits them from this field.
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "Lockhart Quotes",
-  },
+  title: 'Lockhart Surface Solutions',
+  description: 'Professional asphalt maintenance estimator',
+  manifest: '/manifest.json',
 };
 
 export const viewport: Viewport = {
-  width: "device-width",
+  width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#1c1917",
+  themeColor: '#1e40af',
 };
 
 export default function RootLayout({
@@ -35,9 +22,22 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>
+      <head>
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+      </head>
+      <body className="bg-slate-50 text-slate-900 antialiased">
         {children}
-        <ServiceWorkerRegistration />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js').catch(() => {});
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );

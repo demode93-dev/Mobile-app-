@@ -1,8 +1,7 @@
 {
-  "name": "lockhart-surface-solutions",
+  "name": "lockhart-estimator",
   "version": "1.0.0",
   "private": true,
-  "description": "Mobile-friendly field quoting tool for Lockhart Surface Solutions - satellite lot tracing, real-time seal coating & striping estimates, and branded PDF quotes.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,20 +9,21 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "^14.2.5",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "@react-google-maps/api": "^2.19.3",
-    "jspdf": "^2.5.2"
+    "@react-google-maps/api": "^2.20.6",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.2",
+    "lucide-react": "^0.468.0",
+    "next": "15.3.9",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@types/google.maps": "^3.55.11",
-    "@types/node": "^20.14.9",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "autoprefixer": "^10.4.19",
-    "postcss": "^8.4.39",
-    "tailwindcss": "^3.4.4",
-    "typescript": "^5.5.3"
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.3"
   }
 }

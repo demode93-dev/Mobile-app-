@@ -1,134 +1,84 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import MapTracer, { type TracedLot } from "@/components/MapTracer";
-import EstimateForm from "@/components/EstimateForm";
-import EstimateSummary from "@/components/EstimateSummary";
-import ClientPreview from "@/components/ClientPreview";
-import QuotePdfButton from "@/components/QuotePdfButton";
-import {
-  computeBaselineMaterialCost,
-  computeEstimate,
-  DEFAULT_INPUTS,
-  DEFAULT_SETTINGS,
-} from "@/lib/estimation";
+import React, { useState, useCallback } from 'react';
+import dynamic from 'next/dynamic';
+import EstimatorForm, { DEFAULT_SETTINGS, AppSettings } from '@/components/EstimatorForm';
+import type { LatLng } from '@/lib/staticMap';
 
-const GOOGLE_MAPS_API_KEY =
-  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
+const MapComponent = dynamic(() => import('@/components/MapComponent'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center bg-slate-100 rounded-2xl">
+      <div className="text-slate-500 text-lg animate-pulse">Loading map...</div>
+    </div>
+  ),
+});
 
-export default function DashboardPage() {
-  const [propertyAddress, setPropertyAddress] = useState("");
-  const [tracedLot, setTracedLot] = useState<TracedLot | null>(null);
-  const [inputs, setInputs] = useState(DEFAULT_INPUTS);
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
 
-  const handleLotTraced = (lot: TracedLot | null) => {
-    setTracedLot(lot);
-    if (lot) {
-      const sqFt = Math.round(lot.areaSqFt);
-      setInputs((prev) => ({
-        ...prev,
-        totalSqFt: sqFt,
-        // Auto-fill the material lump sum baseline from the traced size -
-        // the estimator can still type over it afterward.
-        materialLumpSum: computeBaselineMaterialCost(sqFt, settings),
-      }));
-    }
-  };
+export default function Home() {
+  const [squareFootage, setSquareFootage] = useState(0);
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [finalQuote, setFinalQuote] = useState(0);
+  const [polygonPath, setPolygonPath] = useState<LatLng[] | null>(null);
 
-  const breakdown = useMemo(
-    () => computeEstimate(inputs, settings),
-    [inputs, settings]
-  );
+  // Form state for PDF
+  const [clientName, setClientName] = useState('');
+  const [projectAddress, setProjectAddress] = useState('');
+  const [numSpaces, setNumSpaces] = useState(0);
 
-  if (!GOOGLE_MAPS_API_KEY) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-lockhart-asphalt p-6 text-center text-neutral-200">
-        <div className="max-w-md space-y-2">
-          <h1 className="text-lg font-semibold text-lockhart-yellow">
-            Missing Google Maps API key
-          </h1>
-          <p className="text-sm">
-            Set <code className="text-lockhart-yellow">
-              NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-            </code>{" "}
-            in <code>.env.local</code> (see <code>.env.example</code>) and
-            enable the Maps JavaScript API, Places API, and Static Maps API
-            for that key, then restart the dev server.
-          </p>
-        </div>
-      </main>
-    );
-  }
+  const handleAreaCalculated = useCallback((sqFt: number) => {
+    setSquareFootage(sqFt);
+  }, []);
 
   return (
-    <main className="flex min-h-screen flex-col bg-neutral-100 lg:flex-row">
-      {/* Map pane */}
-      <div className="h-[45vh] w-full lg:h-screen lg:w-1/2 lg:sticky lg:top-0">
-        <MapTracer
-          apiKey={GOOGLE_MAPS_API_KEY}
-          onLotTraced={handleLotTraced}
-          onAddressSelected={setPropertyAddress}
-        />
-      </div>
+    <main className="min-h-screen bg-slate-50">
+      <header className="bg-blue-800 text-white sticky top-0 z-40 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">Lockhart Surface Solutions</h1>
+            <p className="text-blue-200 text-xs">Professional Estimator</p>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-blue-200">Quote Total</div>
+            <div className="text-2xl font-bold">
+              {new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                maximumFractionDigits: 0,
+              }).format(finalQuote)}
+            </div>
+          </div>
+        </div>
+      </header>
 
-      {/* Dashboard pane */}
-      <div className="w-full space-y-4 p-4 lg:w-1/2 lg:overflow-y-auto lg:p-6">
-        <header>
-          <h1 className="text-xl font-bold text-lockhart-asphalt">
-            Lockhart Surface Solutions
-          </h1>
-          <p className="text-sm text-neutral-500">Field Quote Generator</p>
-        </header>
-
-        {/* ESTIMATOR VIEW - internal only. Everything in this section (raw
-            costs, labor rate, markup) is for the Estimator's eyes only and
-            must never be exposed in the Property Owner View below. */}
-        <section aria-label="Estimator View (internal)" className="space-y-4">
-          <span className="inline-block rounded-full bg-neutral-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-lockhart-yellow">
-            Estimator View - internal only
-          </span>
-
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-neutral-600">
-              Project / Property Address
-            </span>
-            <input
-              type="text"
-              value={propertyAddress}
-              onChange={(e) => setPropertyAddress(e.target.value)}
-              placeholder="Search on the map, or type it here"
-              className="w-full rounded-md border border-neutral-300 px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-lockhart-yellow"
-            />
-          </label>
-
-          <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-            <EstimateForm
-              inputs={inputs}
-              onChange={setInputs}
-              settings={settings}
-              onSettingsChange={setSettings}
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-100px)] min-h-[600px]">
+          <div className="h-[50vh] lg:h-full rounded-2xl overflow-hidden shadow-lg">
+            <MapComponent
+              onAreaCalculated={handleAreaCalculated}
+              onPolygonChange={setPolygonPath}
             />
           </div>
 
-          <EstimateSummary breakdown={breakdown} />
-        </section>
-
-        {/* PROPERTY OWNER VIEW - only the services list and one lump-sum
-            total ever render here or in the exported PDF. No labor rate,
-            material cost, or markup. */}
-        <section aria-label="Property Owner View" className="space-y-3 pt-2">
-          <span className="inline-block rounded-full bg-lockhart-yellow px-3 py-1 text-xs font-semibold uppercase tracking-wide text-lockhart-asphalt">
-            Property Owner View - what the client sees
-          </span>
-          <ClientPreview breakdown={breakdown} propertyAddress={propertyAddress} />
-          <QuotePdfButton
-            apiKey={GOOGLE_MAPS_API_KEY}
-            propertyAddress={propertyAddress}
-            tracedLot={tracedLot}
-            breakdown={breakdown}
-          />
-        </section>
+          <div className="h-[50vh] lg:h-full overflow-y-auto pb-20 lg:pb-0">
+            <EstimatorForm
+              apiKey={GOOGLE_MAPS_API_KEY}
+              squareFootage={squareFootage}
+              polygonPath={polygonPath}
+              settings={settings}
+              onSettingsChange={setSettings}
+              finalQuote={finalQuote}
+              onFinalQuoteChange={setFinalQuote}
+              clientName={clientName}
+              onClientNameChange={setClientName}
+              projectAddress={projectAddress}
+              onProjectAddressChange={setProjectAddress}
+              numSpaces={numSpaces}
+              onNumSpacesChange={setNumSpaces}
+            />
+          </div>
+        </div>
       </div>
     </main>
   );
